@@ -44,6 +44,11 @@ public class ApiExceptionHandler {
         return response(HttpStatus.INTERNAL_SERVER_ERROR, exception.getMessage());
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, Object>> illegalArgument(IllegalArgumentException exception) {
+        return response(HttpStatus.BAD_REQUEST, exception.getMessage());
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> unexpected(Exception exception) {
         return response(HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error");

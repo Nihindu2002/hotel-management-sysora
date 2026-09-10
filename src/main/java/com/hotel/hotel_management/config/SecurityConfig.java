@@ -5,6 +5,7 @@ import com.hotel.hotel_management.security.FirebaseAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -46,11 +47,59 @@ public class SecurityConfig {
                         .requestMatchers("/api/admin/**")
                         .hasRole("ADMIN")
 
+                        .requestMatchers(HttpMethod.GET, "/api/users")
+                        .hasRole("ADMIN")
+
+                        .requestMatchers(HttpMethod.GET, "/api/users/*")
+                        .hasRole("ADMIN")
+
+                        .requestMatchers(HttpMethod.PUT, "/api/users/*")
+                        .hasRole("ADMIN")
+
+                        .requestMatchers(HttpMethod.PATCH, "/api/users/*/role")
+                        .hasRole("ADMIN")
+
+                        .requestMatchers(HttpMethod.GET, "/api/rooms")
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "CUSTOMER")
+
+                        .requestMatchers(HttpMethod.GET, "/api/rooms/*")
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "CUSTOMER")
+
+                        .requestMatchers(HttpMethod.POST, "/api/rooms")
+                        .hasAnyRole("ADMIN", "MANAGER")
+
+                        .requestMatchers(HttpMethod.PUT, "/api/rooms/*")
+                        .hasAnyRole("ADMIN", "MANAGER")
+
+                        .requestMatchers(HttpMethod.POST, "/api/rooms/*/images")
+                        .hasAnyRole("ADMIN", "MANAGER")
+
+                        .requestMatchers(HttpMethod.DELETE, "/api/rooms/*/images")
+                        .hasAnyRole("ADMIN", "MANAGER")
+
+                        .requestMatchers(HttpMethod.PATCH, "/api/rooms/*/status")
+                        .hasAnyRole("ADMIN", "MANAGER")
+
                         .requestMatchers("/api/manager/**")
                         .hasAnyRole("ADMIN", "MANAGER")
 
-                        .requestMatchers("/api/reservations/**", "/api/reception/**", "/api/receptionist/**")
+                        .requestMatchers(HttpMethod.POST, "/api/reservations")
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "CUSTOMER")
+
+                        .requestMatchers(HttpMethod.GET, "/api/reservations")
                         .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST")
+
+                        .requestMatchers(HttpMethod.GET, "/api/reservations/my")
+                        .hasRole("CUSTOMER")
+
+                        .requestMatchers(HttpMethod.GET, "/api/reservations/*")
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "CUSTOMER")
+
+                        .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/reservations/*/cancel-by-staff"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER")
 
                         .requestMatchers("/api/housekeeping/**")
                         .hasAnyRole("ADMIN", "MANAGER", "HOUSEKEEPING")

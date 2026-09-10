@@ -59,6 +59,62 @@ public class UserRepository {
         }
     }
 
+    public User updateProfile(String uid, UpdateUserRequest request) {
+        try {
+            var documentReference = firestore
+                    .collection("users")
+                    .document(uid);
+
+            Map<String, Object> updates = new HashMap<>();
+
+            updates.put("firstName", request.firstName());
+            updates.put("lastName", request.lastName());
+            updates.put("phone", request.phone());
+            updates.put("updatedAt", Date.from(Instant.now()));
+
+            documentReference.update(updates).get();
+
+            return findByUid(uid)
+                    .orElseThrow(() ->
+                            new IllegalStateException("User not found"));
+
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(
+                    "Unable to update user in Firestore", exception);
+
+        } catch (ExecutionException exception) {
+            throw new IllegalStateException(
+                    "Unable to update user in Firestore", exception);
+        }
+    }
+
+    public User updateRole(String uid, Role role) {
+        try {
+            Map<String, Object> updates = new HashMap<>();
+            updates.put("role", role.name());
+            updates.put("updatedAt", Date.from(Instant.now()));
+
+            firestore.collection("users")
+                    .document(uid)
+                    .update(updates)
+                    .get();
+
+            return findByUid(uid)
+                    .orElseThrow(() ->
+                            new IllegalStateException("User not found"));
+
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(
+                    "Unable to update user role", exception);
+
+        } catch (ExecutionException exception) {
+            throw new IllegalStateException(
+                    "Unable to update user role", exception);
+        }
+    }
+
     private User toUser(DocumentSnapshot document) {
         User user = new User();
         user.setUid(document.getId());
