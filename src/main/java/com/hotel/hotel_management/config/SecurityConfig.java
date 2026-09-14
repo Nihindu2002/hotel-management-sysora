@@ -92,6 +92,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/reservations/my")
                         .hasRole("CUSTOMER")
 
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/reservations/availability"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "CUSTOMER")
+
                         .requestMatchers(HttpMethod.GET, "/api/reservations/*")
                         .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "CUSTOMER")
 
@@ -100,6 +106,24 @@ public class SecurityConfig {
                                 "/api/reservations/*/cancel-by-staff"
                         )
                         .hasAnyRole("ADMIN", "MANAGER")
+
+                        .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/reservations/*/confirm"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST")
+
+                        .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/reservations/*/check-in"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST")
+
+                        .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/reservations/*/check-out"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST")
 
                         .requestMatchers("/api/housekeeping/**")
                         .hasAnyRole("ADMIN", "MANAGER", "HOUSEKEEPING")
@@ -112,6 +136,36 @@ public class SecurityConfig {
 
                         .requestMatchers("/api/staff/**")
                         .hasAnyRole("ADMIN", "MANAGER", "STAFF")
+
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/invoices/reservation/*"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST")
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/invoices/my"
+                        )
+                        .hasRole("CUSTOMER")
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/invoices/*"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "CUSTOMER")
+
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/payments"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "CUSTOMER")
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/payments/*"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "CUSTOMER")
 
                         .anyRequest().authenticated()
                 )

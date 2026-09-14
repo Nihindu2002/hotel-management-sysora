@@ -41,26 +41,13 @@ public class ReservationService {
                         new IllegalArgumentException(
                                 "Room not found"));
 
-        List<Reservation> existingReservations =
-                reservationRepository.findByRoomId(request.roomId());
+        if (!isRoomAvailable(
+                request.roomId(),
+                request.checkInDate(),
+                request.checkOutDate())) {
 
-        for (Reservation existing : existingReservations) {
-
-            if (existing.getStatus() == ReservationStatus.CANCELLED
-                    || existing.getStatus() == ReservationStatus.CHECKED_OUT) {
-                continue;
-            }
-
-            boolean overlaps =
-                    request.checkInDate()
-                            .isBefore(existing.getCheckOutDate())
-                    && request.checkOutDate()
-                            .isAfter(existing.getCheckInDate());
-
-            if (overlaps) {
-                throw new IllegalArgumentException(
-                        "Room is already reserved for the selected dates");
-            }
+            throw new IllegalArgumentException(
+                    "Room is already reserved for the selected dates");
         }
 
         Reservation reservation = new Reservation();
@@ -153,5 +140,101 @@ public Reservation cancelReservationByStaff(
     return reservationRepository.updateStatus(
             reservationId,
             ReservationStatus.CANCELLED);
+}
+
+public Reservation confirmReservation(
+        String reservationId) {
+
+    Reservation reservation = reservationRepository.findById(reservationId)
+            .orElseThrow(() ->
+                    new IllegalArgumentException("Reservation not found"));
+
+    if (reservation.getStatus() != ReservationStatus.PENDING) {
+        throw new IllegalArgumentException(
+                "Only pending reservations can be confirmed");
+    }
+
+    return reservationRepository.updateStatus(
+            reservationId,
+            ReservationStatus.CONFIRMED);
+}
+public Reservation checkInReservation(
+        String reservationId) {
+
+    Reservation reservation = reservationRepository.findById(reservationId)
+            .orElseThrow(() ->
+                    new IllegalArgumentException("Reservation not found"));
+
+    if (reservation.getStatus() != ReservationStatus.CONFIRMED) {
+        throw new IllegalArgumentException(
+                "Only confirmed reservations can be checked in");
+    }
+
+    return reservationRepository.updateStatus(
+            reservationId,
+            ReservationStatus.CHECKED_IN);
+}
+
+public Reservation checkOutReservation(
+        String reservationId) {
+
+    Reservation reservation = reservationRepository.findById(reservationId)
+            .orElseThrow(() ->
+                    new IllegalArgumentException("Reservation not found"));
+
+    if (reservation.getStatus() != ReservationStatus.CHECKED_IN) {
+        throw new IllegalArgumentException(
+                "Only checked-in reservations can be checked out");
+    }
+
+    return reservationRepository.updateStatus(
+            reservationId,
+            ReservationStatus.CHECKED_OUT);
+}
+public boolean isRoomAvailable(
+        String roomId,
+        LocalDate checkInDate,
+        LocalDate checkOutDate) {
+
+    if (checkInDate == null || checkOutDate == null) {
+        throw new IllegalArgumentException(
+                "Check-in and check-out dates are required");
+    }
+
+    if (!checkOutDate.isAfter(checkInDate)) {
+        throw new IllegalArgumentException(
+                "Check-out date must be after check-in date");
+    }
+
+    if (checkInDate.isBefore(LocalDate.now())) {
+        throw new IllegalArgumentException(
+                "Check-in date cannot be in the past");
+    }
+
+    if (roomRepository.findById(roomId).isEmpty()) {
+        throw new IllegalArgumentException(
+                "Room not found");
+    }
+
+    List<Reservation> reservations =
+            reservationRepository.findByRoomId(roomId);
+
+    for (Reservation existing : reservations) {
+
+        if (existing.getStatus() == ReservationStatus.CANCELLED
+                || existing.getStatus() == ReservationStatus.CHECKED_OUT) {
+            continue;
+        }
+
+        boolean overlaps =
+                checkInDate.isBefore(existing.getCheckOutDate())
+                && checkOutDate.isAfter(existing.getCheckInDate());
+
+        if (overlaps) {
+            return false;
+        }
+    }
+
+    return true;
 }
 }

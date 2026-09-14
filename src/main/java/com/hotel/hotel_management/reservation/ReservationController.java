@@ -7,6 +7,11 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import org.springframework.web.bind.annotation.RequestParam;
+
+import java.time.LocalDate;
+import java.util.Map;
+
 
 @RestController
 @RequestMapping("/api/reservations")
@@ -84,6 +89,53 @@ public Reservation cancelReservationByStaff(
 
     return reservationService.cancelReservationByStaff(
             reservationId
+    );
+}
+
+@PatchMapping("/{reservationId}/confirm")
+public Reservation confirmReservation(
+        @PathVariable String reservationId) {
+
+    return reservationService.confirmReservation(
+            reservationId
+    );
+}
+
+@PatchMapping("/{reservationId}/check-in")
+public Reservation checkInReservation(
+        @PathVariable String reservationId) {
+
+    return reservationService.checkInReservation(
+            reservationId
+    );
+}
+
+@PatchMapping("/{reservationId}/check-out")
+public Reservation checkOutReservation(
+        @PathVariable String reservationId) {
+
+    return reservationService.checkOutReservation(
+            reservationId
+    );
+}
+
+@GetMapping("/availability")
+public Map<String, Object> checkRoomAvailability(
+        @RequestParam String roomId,
+        @RequestParam LocalDate checkInDate,
+        @RequestParam LocalDate checkOutDate) {
+
+    boolean available = reservationService.isRoomAvailable(
+            roomId,
+            checkInDate,
+            checkOutDate
+    );
+
+    return Map.of(
+            "roomId", roomId,
+            "checkInDate", checkInDate,
+            "checkOutDate", checkOutDate,
+            "available", available
     );
 }
 }
