@@ -3,6 +3,7 @@ package com.hotel.hotel_management.payment;
 import com.hotel.hotel_management.invoice.Invoice;
 import com.hotel.hotel_management.invoice.InvoiceRepository;
 import com.hotel.hotel_management.invoice.InvoiceStatus;
+import com.hotel.hotel_management.finance.FinanceService;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -13,18 +14,28 @@ public class PaymentService {
 
     private final PaymentRepository paymentRepository;
     private final InvoiceRepository invoiceRepository;
+    private final FinanceService financeService;
 
     public PaymentService(
             PaymentRepository paymentRepository,
-            InvoiceRepository invoiceRepository) {
+            InvoiceRepository invoiceRepository,
+            FinanceService financeService) {
 
         this.paymentRepository = paymentRepository;
         this.invoiceRepository = invoiceRepository;
+        this.financeService = financeService;
     }
 
     public Payment createPayment(
             CreatePaymentRequest request,
             String customerUid) {
+        return createPayment(request, customerUid, customerUid);
+    }
+
+    public Payment createPayment(
+            CreatePaymentRequest request,
+            String customerUid,
+            String performedBy) {
 
         Invoice invoice =
                 invoiceRepository.findById(request.invoiceId())
@@ -32,15 +43,13 @@ public class PaymentService {
                                 new IllegalArgumentException(
                                         "Invoice not found"));
 
-        if (invoice.getStatus().equals("PAID")) {
-
+        if (InvoiceStatus.PAID.name().equals(invoice.getStatus())) {
             throw new IllegalArgumentException(
                     "Invoice is already fully paid");
         }
 
         if (customerUid != null
                 && !invoice.getCustomerUid().equals(customerUid)) {
-
             throw new com.hotel.hotel_management.common.ForbiddenException(
                     "You are not authorized to pay this invoice");
         }
@@ -51,7 +60,6 @@ public class PaymentService {
 
         if (totalPaid + request.amount()
                 > invoice.getTotalAmount()) {
-
             throw new IllegalArgumentException(
                     "Payment amount exceeds remaining invoice balance");
         }
@@ -59,24 +67,6 @@ public class PaymentService {
         Instant now = Instant.now();
 
         Payment payment = new Payment();
-
-        double updatedTotalPaid = totalPaid + request.amount();
-
-        if (updatedTotalPaid >= invoice.getTotalAmount()) {
-
-            invoiceRepository.updateStatus(
-                    invoice.getInvoiceId(),
-                    InvoiceStatus.PAID
-            );
-
-        } else {
-
-            invoiceRepository.updateStatus(
-                    invoice.getInvoiceId(),
-                    InvoiceStatus.PARTIALLY_PAID
-            );
-        }
-
         payment.setPaymentId(UUID.randomUUID().toString());
         payment.setInvoiceId(invoice.getInvoiceId());
         payment.setReservationId(invoice.getReservationId());
@@ -91,7 +81,13 @@ public class PaymentService {
 
         payment.setCreatedAt(now);
         payment.setUpdatedAt(now);
-        return paymentRepository.save(payment);
+        Payment savedPayment = paymentRepository.save(payment);
+
+        updateInvoiceStatus(invoice.getInvoiceId());
+
+        financeService.recordPaymentIncome(savedPayment, performedBy);
+
+        return savedPayment;
     }
 
     public Payment getPaymentById(
@@ -138,64 +134,70 @@ public class PaymentService {
 public java.util.List<Payment> getAllPayments() {
     return paymentRepository.findAll();
 }
-public Payment refundPayment(String paymentId) {
-
-    Payment payment =
-            paymentRepository.findById(paymentId)
-                    .orElseThrow(() ->
-                            new IllegalArgumentException(
-                                    "Payment not found"));
-
-    if (payment.getStatus().equals(
-            PaymentStatus.REFUNDED.name())) {
-
-        throw new IllegalArgumentException(
-                "Payment is already refunded");
+    public Payment refundPayment(String paymentId) {
+        return refundPayment(paymentId, null);
     }
 
-    if (!payment.getStatus().equals(
-            PaymentStatus.COMPLETED.name())) {
+    public Payment refundPayment(String paymentId, String performedBy) {
 
-        throw new IllegalArgumentException(
-                "Only completed payments can be refunded");
+        Payment payment =
+                paymentRepository.findById(paymentId)
+                        .orElseThrow(() ->
+                                new IllegalArgumentException(
+                                        "Payment not found"));
+
+        if (payment.getStatus().equals(
+                PaymentStatus.REFUNDED.name())) {
+
+            throw new IllegalArgumentException(
+                    "Payment is already refunded");
+        }
+
+        if (!payment.getStatus().equals(
+                PaymentStatus.COMPLETED.name())) {
+
+            throw new IllegalArgumentException(
+                    "Only completed payments can be refunded");
+        }
+
+        Payment refundedPayment =
+                paymentRepository.updateStatus(
+                        paymentId,
+                        PaymentStatus.REFUNDED);
+
+        updateInvoiceStatus(payment.getInvoiceId());
+
+        financeService.recordPaymentRefund(refundedPayment, performedBy);
+
+        return refundedPayment;
     }
 
-    Payment refundedPayment =
-            paymentRepository.updateStatus(
-                    paymentId,
-                    PaymentStatus.REFUNDED);
+    public void updateInvoiceStatus(String invoiceId) {
+        Invoice invoice =
+                invoiceRepository.findById(invoiceId)
+                        .orElseThrow(() ->
+                                new IllegalArgumentException(
+                                        "Invoice not found"));
 
-    Invoice invoice =
-            invoiceRepository.findById(payment.getInvoiceId())
-                    .orElseThrow(() ->
-                            new IllegalArgumentException(
-                                    "Invoice not found"));
+        double totalPaid =
+                paymentRepository.getTotalPaidForInvoice(invoiceId);
+        double totalAmount =
+                invoice.getTotalAmount() != null ? invoice.getTotalAmount() : 0.0;
 
-    double totalPaid =
-            paymentRepository.getTotalPaidForInvoice(
-                    invoice.getInvoiceId());
-
-    if (totalPaid >= invoice.getTotalAmount()) {
-
-        invoiceRepository.updateStatus(
-                invoice.getInvoiceId(),
-                InvoiceStatus.PAID);
-
-    } else if (totalPaid > 0) {
-
-        invoiceRepository.updateStatus(
-                invoice.getInvoiceId(),
-                InvoiceStatus.PARTIALLY_PAID);
-
-    } else {
-
-        invoiceRepository.updateStatus(
-                invoice.getInvoiceId(),
-                InvoiceStatus.UNPAID);
+        if (totalPaid <= 0) {
+            invoiceRepository.updateStatus(
+                    invoiceId,
+                    InvoiceStatus.UNPAID);
+        } else if (totalPaid < totalAmount) {
+            invoiceRepository.updateStatus(
+                    invoiceId,
+                    InvoiceStatus.PARTIALLY_PAID);
+        } else {
+            invoiceRepository.updateStatus(
+                    invoiceId,
+                    InvoiceStatus.PAID);
+        }
     }
-
-    return refundedPayment;
-}
 
 public double getTotalPaidForInvoice(String invoiceId) {
     return paymentRepository.getTotalPaidForInvoice(invoiceId);
@@ -207,5 +209,9 @@ public boolean hasPaymentsForInvoice(String invoiceId) {
 
 public double getTotalRefundedForInvoice(String invoiceId) {
     return paymentRepository.getTotalRefundedForInvoice(invoiceId);
+}
+
+public java.util.List<Payment> getCustomerPayments(String customerUid) {
+    return paymentRepository.findByCustomerUid(customerUid);
 }
 }

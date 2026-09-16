@@ -41,6 +41,7 @@ public class MaintenanceRepository {
         data.put("startedAt", task.getStartedAt());
         data.put("completedAt", task.getCompletedAt());
         data.put("updatedAt", task.getUpdatedAt());
+        data.put("actualCost", task.getActualCost());
 
         try {
             document.set(data).get();
@@ -177,6 +178,14 @@ public class MaintenanceRepository {
             String taskId,
             MaintenanceStatus status,
             Instant timestamp) {
+        return updateStatus(taskId, status, timestamp, null);
+    }
+
+    public MaintenanceTask updateStatus(
+            String taskId,
+            MaintenanceStatus status,
+            Instant timestamp,
+            Double actualCost) {
 
         DocumentReference document =
                 firestore.collection("maintenanceTasks")
@@ -190,6 +199,9 @@ public class MaintenanceRepository {
             updates.put("startedAt", timestamp);
         } else if (status == MaintenanceStatus.COMPLETED && timestamp != null) {
             updates.put("completedAt", timestamp);
+            if (actualCost != null) {
+                updates.put("actualCost", actualCost);
+            }
         }
 
         try {
@@ -202,6 +214,28 @@ public class MaintenanceRepository {
             throw new IllegalStateException("Unable to update task status", exception);
         } catch (ExecutionException exception) {
             throw new IllegalStateException("Unable to update task status", exception);
+        }
+    }
+
+    public MaintenanceTask updateCost(String taskId, Double actualCost) {
+        DocumentReference document =
+                firestore.collection("maintenanceTasks")
+                        .document(taskId);
+
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("actualCost", actualCost);
+        updates.put("updatedAt", Instant.now());
+
+        try {
+            document.update(updates).get();
+            return findById(taskId)
+                    .orElseThrow(() ->
+                            new IllegalArgumentException("Maintenance task not found"));
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Unable to update task cost", exception);
+        } catch (ExecutionException exception) {
+            throw new IllegalStateException("Unable to update task cost", exception);
         }
     }
 
@@ -261,6 +295,8 @@ public class MaintenanceRepository {
         if (snapshot.getTimestamp("updatedAt") != null) {
             task.setUpdatedAt(snapshot.getTimestamp("updatedAt").toDate().toInstant());
         }
+
+        task.setActualCost(snapshot.getDouble("actualCost"));
 
         return task;
     }

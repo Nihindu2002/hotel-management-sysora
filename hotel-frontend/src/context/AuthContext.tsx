@@ -1,0 +1,121 @@
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from 'react';
+import {
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut,
+  type User,
+} from 'firebase/auth';
+
+import { auth } from '../lib/firebase';
+import { getCurrentUserProfile } from '../services/userService';
+import type { UserProfile } from '../types/user';
+import type { RegisterRequest } from '../types/auth';
+import * as authService from '../services/authService';
+
+export interface AuthContextType {
+  user: UserProfile | null;
+  firebaseUser: User | null;
+  loading: boolean;
+  login: (email: string, password: string) => Promise<UserProfile>;
+  register: {
+    (email: string, password: string): Promise<void>;
+    (data: RegisterRequest): Promise<void>;
+  };
+  logout: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      try {
+        setFirebaseUser(currentUser);
+
+        if (currentUser) {
+          const profile = await getCurrentUserProfile();
+          setUser(profile);
+        } else {
+          setUser(null);
+        }
+      } catch (error) {
+        console.error('Failed to load user profile:', error);
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
+  const login = async (email: string, password: string): Promise<UserProfile> => {
+    setLoading(true);
+    await signInWithEmailAndPassword(auth, email, password);
+    try {
+      const profile = await getCurrentUserProfile();
+      setUser(profile);
+      return profile;
+    } catch (error) {
+      console.error('Failed to load user profile on login:', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const register = async (
+    emailOrData: string | RegisterRequest,
+    password?: string,
+  ) => {
+    if (typeof emailOrData === 'string') {
+      await createUserWithEmailAndPassword(auth, emailOrData, password!);
+    } else {
+      await authService.register(emailOrData);
+    }
+  };
+
+  const logout = async () => {
+    await signOut(auth);
+    setUser(null);
+    setFirebaseUser(null);
+  };
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        firebaseUser,
+        loading,
+        login,
+        register: register as AuthContextType['register'],
+        logout,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+// oxlint-disable-next-line react/only-export-components
+export function useAuth() {
+  const context = useContext(AuthContext);
+
+  if (!context) {
+    throw new Error('useAuth must be used inside AuthProvider');
+  }
+
+  return context;
+}
+

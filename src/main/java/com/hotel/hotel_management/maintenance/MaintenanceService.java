@@ -1,15 +1,18 @@
 package com.hotel.hotel_management.maintenance;
 
 import com.hotel.hotel_management.common.ForbiddenException;
+import com.hotel.hotel_management.finance.FinanceService;
 import com.hotel.hotel_management.housekeeping.HousekeepingRepository;
 import com.hotel.hotel_management.housekeeping.HousekeepingTask;
 import com.hotel.hotel_management.housekeeping.HousekeepingTaskStatus;
 import com.hotel.hotel_management.room.Room;
 import com.hotel.hotel_management.room.RoomRepository;
 import com.hotel.hotel_management.room.RoomStatus;
-import com.hotel.hotel_management.user.Role;
-import com.hotel.hotel_management.user.User;
 import com.hotel.hotel_management.user.UserRepository;
+import com.hotel.hotel_management.staff.EmploymentStatus;
+import com.hotel.hotel_management.staff.Staff;
+import com.hotel.hotel_management.staff.StaffDepartment;
+import com.hotel.hotel_management.staff.StaffRepository;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -23,17 +26,33 @@ public class MaintenanceService {
     private final RoomRepository roomRepository;
     private final UserRepository userRepository;
     private final HousekeepingRepository housekeepingRepository;
+    private final StaffRepository staffRepository;
+    private final FinanceService financeService;
 
     public MaintenanceService(
             MaintenanceRepository maintenanceRepository,
             RoomRepository roomRepository,
             UserRepository userRepository,
-            HousekeepingRepository housekeepingRepository) {
+            HousekeepingRepository housekeepingRepository,
+            StaffRepository staffRepository) {
+        this(maintenanceRepository, roomRepository, userRepository, housekeepingRepository, staffRepository, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public MaintenanceService(
+            MaintenanceRepository maintenanceRepository,
+            RoomRepository roomRepository,
+            UserRepository userRepository,
+            HousekeepingRepository housekeepingRepository,
+            StaffRepository staffRepository,
+            FinanceService financeService) {
 
         this.maintenanceRepository = maintenanceRepository;
         this.roomRepository = roomRepository;
         this.userRepository = userRepository;
         this.housekeepingRepository = housekeepingRepository;
+        this.staffRepository = staffRepository;
+        this.financeService = financeService;
     }
 
     public MaintenanceTask createTask(
@@ -73,13 +92,16 @@ public class MaintenanceService {
                     "Completed or cancelled tasks cannot be assigned");
         }
 
-        User staff = userRepository.findByUid(staffUid)
+        Staff staffProfile = staffRepository.findByUserUid(staffUid)
                 .orElseThrow(() ->
-                        new IllegalArgumentException("Staff user not found"));
+                        new IllegalArgumentException("Staff profile not found"));
 
-        if (!Role.MAINTENANCE.name().equals(staff.getRole())) {
-            throw new IllegalArgumentException(
-                    "Staff must have MAINTENANCE role");
+        if (staffProfile.getEmploymentStatus() != EmploymentStatus.ACTIVE) {
+            throw new IllegalArgumentException("Staff member is not active");
+        }
+
+        if (staffProfile.getDepartment() != StaffDepartment.MAINTENANCE) {
+            throw new IllegalArgumentException("Staff member must belong to MAINTENANCE department");
         }
 
         return maintenanceRepository.updateAssignment(
@@ -102,6 +124,14 @@ public class MaintenanceService {
                     "You are not authorized to start this task");
         }
 
+        Staff staff = staffRepository.findByUserUid(staffUid)
+                .orElseThrow(() ->
+                        new ForbiddenException("Staff profile not found"));
+
+        if (staff.getEmploymentStatus() != EmploymentStatus.ACTIVE) {
+            throw new ForbiddenException("Staff member is not active");
+        }
+
         return maintenanceRepository.updateStatus(
                 taskId,
                 MaintenanceStatus.IN_PROGRESS,
@@ -109,6 +139,13 @@ public class MaintenanceService {
     }
 
     public MaintenanceTask completeTask(String taskId, String staffUid) {
+        return completeTask(taskId, staffUid, 0.0);
+    }
+
+    public MaintenanceTask completeTask(
+            String taskId,
+            String staffUid,
+            Double actualCost) {
 
         MaintenanceTask task = getTaskById(taskId);
 
@@ -122,14 +159,55 @@ public class MaintenanceService {
                     "You are not authorized to complete this task");
         }
 
+        if (actualCost != null && actualCost < 0) {
+            throw new IllegalArgumentException(
+                    "Actual cost cannot be negative");
+        }
+
+        Staff staff = staffRepository.findByUserUid(staffUid)
+                .orElseThrow(() ->
+                        new ForbiddenException("Staff profile not found"));
+
+        if (staff.getEmploymentStatus() != EmploymentStatus.ACTIVE) {
+            throw new ForbiddenException("Staff member is not active");
+        }
+
+        Double cost = actualCost != null ? actualCost : 0.0;
+
         MaintenanceTask completedTask = maintenanceRepository.updateStatus(
                 taskId,
                 MaintenanceStatus.COMPLETED,
-                Instant.now());
+                Instant.now(),
+                cost);
 
         updateRoomStatusAfterMaintenanceResolution(task.getRoomId(), taskId);
 
+        if (cost > 0 && financeService != null) {
+            financeService.recordMaintenanceExpense(completedTask, staffUid);
+        }
+
         return completedTask;
+    }
+
+    public MaintenanceTask updateTaskCost(
+            String taskId,
+            Double actualCost,
+            String performedBy) {
+
+        if (actualCost == null || actualCost < 0) {
+            throw new IllegalArgumentException(
+                    "Actual cost cannot be negative");
+        }
+
+        MaintenanceTask task = getTaskById(taskId);
+
+        MaintenanceTask updatedTask = maintenanceRepository.updateCost(taskId, actualCost);
+
+        if (task.getStatus() == MaintenanceStatus.COMPLETED && financeService != null) {
+            financeService.updateMaintenanceExpense(updatedTask, actualCost, performedBy);
+        }
+
+        return updatedTask;
     }
 
     public MaintenanceTask cancelTask(String taskId) {
@@ -145,9 +223,14 @@ public class MaintenanceService {
         MaintenanceTask cancelledTask = maintenanceRepository.updateStatus(
                 taskId,
                 MaintenanceStatus.CANCELLED,
-                null);
+                null,
+                task.getActualCost());
 
         updateRoomStatusAfterMaintenanceResolution(task.getRoomId(), taskId);
+
+        if (financeService != null) {
+            financeService.cancelMaintenanceExpense(taskId);
+        }
 
         return cancelledTask;
     }

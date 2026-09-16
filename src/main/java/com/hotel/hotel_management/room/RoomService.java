@@ -1,5 +1,7 @@
 package com.hotel.hotel_management.room;
 
+import com.hotel.hotel_management.exception.ConflictException;
+import com.hotel.hotel_management.exception.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -27,7 +29,7 @@ public class RoomService {
     public Room getRoomById(String roomId) {
         return roomRepository.findById(roomId)
                 .orElseThrow(() ->
-                        new RuntimeException("Room not found"));
+                        new ResourceNotFoundException("Room not found"));
     }
 
     public Room createRoom(Room room) {
@@ -58,7 +60,7 @@ public class RoomService {
         }
 
         if (roomRepository.findById(room.getRoomId()).isPresent()) {
-            throw new IllegalArgumentException("Room already exists");
+            throw new ConflictException("Room already exists");
         }
 
         return roomRepository.save(room);
@@ -93,7 +95,7 @@ public class RoomService {
     }
 
     if (roomRepository.findById(roomId).isEmpty()) {
-        throw new IllegalArgumentException("Room not found");
+        throw new ResourceNotFoundException("Room not found");
     }
 
     return roomRepository.updateStatus(roomId, status);
@@ -105,7 +107,7 @@ public class RoomService {
 
         Room room = roomRepository.findById(roomId)
                 .orElseThrow(() ->
-                        new IllegalArgumentException("Room not found"));
+                        new ResourceNotFoundException("Room not found"));
 
         String imageUrl =
                 roomImageService.uploadImage(roomId, file);

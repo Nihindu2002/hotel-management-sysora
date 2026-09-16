@@ -1,5 +1,6 @@
 package com.hotel.hotel_management.inventory;
 
+import com.hotel.hotel_management.finance.FinanceService;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -12,13 +13,16 @@ public class InventoryService {
 
     private final InventoryRepository inventoryRepository;
     private final InventoryTransactionRepository inventoryTransactionRepository;
+    private final FinanceService financeService;
 
     public InventoryService(
             InventoryRepository inventoryRepository,
-            InventoryTransactionRepository inventoryTransactionRepository) {
+            InventoryTransactionRepository inventoryTransactionRepository,
+            FinanceService financeService) {
 
         this.inventoryRepository = inventoryRepository;
         this.inventoryTransactionRepository = inventoryTransactionRepository;
+        this.financeService = financeService;
     }
 
     public InventoryItem createItem(CreateInventoryItemRequest request) {
@@ -104,6 +108,10 @@ public class InventoryService {
             throw new IllegalArgumentException("Stock-in quantity must be greater than zero");
         }
 
+        if (request.unitCost() != null && request.unitCost() < 0) {
+            throw new IllegalArgumentException("Unit cost cannot be negative");
+        }
+
         double previousQuantity = item.getQuantity() != null ? item.getQuantity() : 0.0;
         double newQuantity = previousQuantity + request.quantity();
 
@@ -124,7 +132,11 @@ public class InventoryService {
         transaction.setNotes(request.notes());
         transaction.setCreatedAt(now);
 
-        return inventoryTransactionRepository.save(transaction);
+        InventoryTransaction savedTransaction = inventoryTransactionRepository.save(transaction);
+
+        financeService.recordInventoryExpense(savedTransaction);
+
+        return savedTransaction;
     }
 
     public InventoryTransaction stockOut(StockOutRequest request, String performedBy) {

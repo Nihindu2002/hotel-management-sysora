@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 
@@ -17,11 +18,11 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @Configuration
 public class SecurityConfig {
 
-        private final FirebaseAuthenticationFilter firebaseAuthenticationFilter;
+    private final FirebaseAuthenticationFilter firebaseAuthenticationFilter;
 
     public SecurityConfig(
-                        FirebaseAuthenticationFilter firebaseAuthenticationFilter) {
-                this.firebaseAuthenticationFilter = firebaseAuthenticationFilter;
+            FirebaseAuthenticationFilter firebaseAuthenticationFilter) {
+        this.firebaseAuthenticationFilter = firebaseAuthenticationFilter;
     }
 
     @Bean
@@ -29,6 +30,8 @@ public class SecurityConfig {
             HttpSecurity http) throws Exception {
 
         http
+                .cors(Customizer.withDefaults())
+
                 .csrf(csrf -> csrf.disable())
 
                 .sessionManagement(session ->
@@ -41,8 +44,15 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/test",
                                 "/api/auth/register",
-                                "/api/auth/login"
+                                "/api/auth/login",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html",
+                                "/v3/api-docs/**",
+                                "/v3/api-docs"
                         ).permitAll()
+
+                        .requestMatchers(HttpMethod.GET, "/api/users/me")
+                        .authenticated()
 
                         .requestMatchers("/api/admin/**")
                         .hasRole("ADMIN")
@@ -81,6 +91,9 @@ public class SecurityConfig {
                         .hasAnyRole("ADMIN", "MANAGER")
 
                         .requestMatchers("/api/manager/**")
+                        .hasAnyRole("ADMIN", "MANAGER")
+
+                        .requestMatchers("/api/dashboard", "/api/dashboard/**")
                         .hasAnyRole("ADMIN", "MANAGER")
 
                         .requestMatchers(HttpMethod.POST, "/api/reservations")
@@ -250,6 +263,12 @@ public class SecurityConfig {
 
                         .requestMatchers(
                                 HttpMethod.PATCH,
+                                "/api/maintenance/tasks/*/cost"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER")
+
+                        .requestMatchers(
+                                HttpMethod.PATCH,
                                 "/api/maintenance/tasks/*/cancel"
                         )
                         .hasAnyRole("ADMIN", "MANAGER")
@@ -338,14 +357,44 @@ public class SecurityConfig {
                                 "HOUSEKEEPING"
                         )
 
-                        .requestMatchers("/api/finance/**", "/api/accountant/**")
+                        .requestMatchers("/api/finance", "/api/finance/**", "/api/accountant/**")
                         .hasAnyRole("ADMIN", "MANAGER", "ACCOUNTANT")
 
-                        .requestMatchers("/api/customer/**")
+                        .requestMatchers("/api/customer", "/api/customer/**")
                         .hasRole("CUSTOMER")
 
-                        .requestMatchers("/api/staff/**")
-                        .hasAnyRole("ADMIN", "MANAGER", "STAFF")
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/staff"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER")
+
+                        .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/staff/*/status"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER")
+
+                        .requestMatchers(
+                                HttpMethod.PUT,
+                                "/api/staff/*"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER")
+
+                        .requestMatchers(
+                                HttpMethod.DELETE,
+                                "/api/staff/*"
+                        )
+                        .hasRole("ADMIN")
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/staff",
+                                "/api/staff/*",
+                                "/api/staff/user/*"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER")
+
 
                         .requestMatchers(
                                 HttpMethod.POST,
@@ -420,12 +469,24 @@ public class SecurityConfig {
                         .authenticationEntryPoint((request, response, exception) -> {
                             response.setStatus(HttpStatus.UNAUTHORIZED.value());
                             response.setContentType("application/json");
-                            response.getWriter().write("{\"status\":401,\"message\":\"Invalid or missing Firebase ID token\"}");
+                            String json = formatApiErrorJson(
+                                    HttpStatus.UNAUTHORIZED.value(),
+                                    "Unauthorized",
+                                    "Invalid or missing Firebase ID token",
+                                    request.getRequestURI()
+                            );
+                            response.getWriter().write(json);
                         })
                         .accessDeniedHandler((request, response, exception) -> {
                             response.setStatus(HttpStatus.FORBIDDEN.value());
                             response.setContentType("application/json");
-                            response.getWriter().write("{\"status\":403,\"message\":\"Access denied\"}");
+                            String json = formatApiErrorJson(
+                                    HttpStatus.FORBIDDEN.value(),
+                                    "Forbidden",
+                                    "Access denied",
+                                    request.getRequestURI()
+                            );
+                            response.getWriter().write(json);
                         })
                 )
 
@@ -435,5 +496,15 @@ public class SecurityConfig {
                 );
 
         return http.build();
+    }
+
+    private String formatApiErrorJson(int status, String error, String message, String path) {
+        String safePath = path != null ? path.replace("\"", "\\\"") : "";
+        String safeMessage = message != null ? message.replace("\"", "\\\"") : "";
+        String timestamp = java.time.Instant.now().toString();
+        return String.format(
+                "{\"timestamp\":\"%s\",\"status\":%d,\"error\":\"%s\",\"message\":\"%s\",\"path\":\"%s\"}",
+                timestamp, status, error, safeMessage, safePath
+        );
     }
 }

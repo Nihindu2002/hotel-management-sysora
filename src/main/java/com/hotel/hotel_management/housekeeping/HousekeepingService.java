@@ -4,9 +4,11 @@ import com.hotel.hotel_management.common.ForbiddenException;
 import com.hotel.hotel_management.room.Room;
 import com.hotel.hotel_management.room.RoomRepository;
 import com.hotel.hotel_management.room.RoomStatus;
-import com.hotel.hotel_management.user.Role;
-import com.hotel.hotel_management.user.User;
 import com.hotel.hotel_management.user.UserRepository;
+import com.hotel.hotel_management.staff.EmploymentStatus;
+import com.hotel.hotel_management.staff.Staff;
+import com.hotel.hotel_management.staff.StaffDepartment;
+import com.hotel.hotel_management.staff.StaffRepository;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -19,15 +21,18 @@ public class HousekeepingService {
     private final HousekeepingRepository housekeepingRepository;
     private final RoomRepository roomRepository;
     private final UserRepository userRepository;
+    private final StaffRepository staffRepository;
 
     public HousekeepingService(
             HousekeepingRepository housekeepingRepository,
             RoomRepository roomRepository,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            StaffRepository staffRepository) {
 
         this.housekeepingRepository = housekeepingRepository;
         this.roomRepository = roomRepository;
         this.userRepository = userRepository;
+        this.staffRepository = staffRepository;
     }
 
     public HousekeepingTask createTask(CreateHousekeepingTaskRequest request) {
@@ -78,13 +83,16 @@ public class HousekeepingService {
                     "Completed or cancelled tasks cannot be assigned");
         }
 
-        User staff = userRepository.findByUid(staffUid)
+        Staff staffProfile = staffRepository.findByUserUid(staffUid)
                 .orElseThrow(() ->
-                        new IllegalArgumentException("Staff user not found"));
+                        new IllegalArgumentException("Staff profile not found"));
 
-        if (!Role.HOUSEKEEPING.name().equals(staff.getRole())) {
-            throw new IllegalArgumentException(
-                    "Staff must have HOUSEKEEPING role");
+        if (staffProfile.getEmploymentStatus() != EmploymentStatus.ACTIVE) {
+            throw new IllegalArgumentException("Staff member is not active");
+        }
+
+        if (staffProfile.getDepartment() != StaffDepartment.HOUSEKEEPING) {
+            throw new IllegalArgumentException("Staff member must belong to HOUSEKEEPING department");
         }
 
         return housekeepingRepository.updateAssignment(
@@ -107,6 +115,14 @@ public class HousekeepingService {
                     "You are not authorized to start this task");
         }
 
+        Staff staff = staffRepository.findByUserUid(staffUid)
+                .orElseThrow(() ->
+                        new ForbiddenException("Staff profile not found"));
+
+        if (staff.getEmploymentStatus() != EmploymentStatus.ACTIVE) {
+            throw new ForbiddenException("Staff member is not active");
+        }
+
         return housekeepingRepository.updateStatus(
                 taskId,
                 HousekeepingTaskStatus.IN_PROGRESS,
@@ -125,6 +141,14 @@ public class HousekeepingService {
         if (task.getAssignedTo() == null || !task.getAssignedTo().equals(staffUid)) {
             throw new ForbiddenException(
                     "You are not authorized to complete this task");
+        }
+
+        Staff staff = staffRepository.findByUserUid(staffUid)
+                .orElseThrow(() ->
+                        new ForbiddenException("Staff profile not found"));
+
+        if (staff.getEmploymentStatus() != EmploymentStatus.ACTIVE) {
+            throw new ForbiddenException("Staff member is not active");
         }
 
         HousekeepingTask completedTask = housekeepingRepository.updateStatus(

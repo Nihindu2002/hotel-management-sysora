@@ -130,39 +130,32 @@ public class InvoiceService {
                     "Invoice total cannot be less than the amount already paid");
         }
 
-        Invoice updatedInvoice =
-                invoiceRepository.updateAmounts(
-                        invoiceId,
-                        request.additionalCharges(),
-                        request.discount(),
-                        totalAmount);
+        invoiceRepository.updateAmounts(
+                invoiceId,
+                request.additionalCharges(),
+                request.discount(),
+                totalAmount);
 
-        double totalPaidAfterUpdate =
+        return recalculateInvoiceStatus(invoiceId);
+    }
+
+    public Invoice recalculateInvoiceStatus(String invoiceId) {
+        Invoice invoice = getInvoiceById(invoiceId);
+        double totalPaid =
                 paymentService.getTotalPaidForInvoice(invoiceId);
+        double totalAmount =
+                invoice.getTotalAmount() != null ? invoice.getTotalAmount() : 0.0;
 
-        if (totalPaidAfterUpdate >= totalAmount) {
-
-            updatedInvoice =
-                    invoiceRepository.updateStatus(
-                            invoiceId,
-                            InvoiceStatus.PAID);
-
-        } else if (totalPaidAfterUpdate > 0) {
-
-            updatedInvoice =
-                    invoiceRepository.updateStatus(
-                            invoiceId,
-                            InvoiceStatus.PARTIALLY_PAID);
-
+        InvoiceStatus newStatus;
+        if (totalPaid <= 0) {
+            newStatus = InvoiceStatus.UNPAID;
+        } else if (totalPaid < totalAmount) {
+            newStatus = InvoiceStatus.PARTIALLY_PAID;
         } else {
-
-            updatedInvoice =
-                    invoiceRepository.updateStatus(
-                            invoiceId,
-                            InvoiceStatus.UNPAID);
+            newStatus = InvoiceStatus.PAID;
         }
 
-        return updatedInvoice;
+        return invoiceRepository.updateStatus(invoiceId, newStatus);
     }
 
     public void deleteInvoice(String invoiceId) {
