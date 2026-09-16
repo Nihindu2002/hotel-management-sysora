@@ -125,8 +125,218 @@ public class SecurityConfig {
                         )
                         .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST")
 
-                        .requestMatchers("/api/housekeeping/**")
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/housekeeping/test"
+                        )
                         .hasAnyRole("ADMIN", "MANAGER", "HOUSEKEEPING")
+
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/housekeeping/tasks"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER")
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/housekeeping/my"
+                        )
+                        .hasRole("HOUSEKEEPING")
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/housekeeping/rooms/*/tasks"
+                        )
+                        .hasAnyRole(
+                                "ADMIN",
+                                "MANAGER",
+                                "RECEPTIONIST",
+                                "HOUSEKEEPING"
+                        )
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/housekeeping/tasks/*"
+                        )
+                        .hasAnyRole(
+                                "ADMIN",
+                                "MANAGER",
+                                "RECEPTIONIST",
+                                "HOUSEKEEPING"
+                        )
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/housekeeping/tasks"
+                        )
+                        .hasAnyRole(
+                                "ADMIN",
+                                "MANAGER",
+                                "RECEPTIONIST",
+                                "HOUSEKEEPING"
+                        )
+
+                        .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/housekeeping/tasks/*/assign"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER")
+
+                        .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/housekeeping/tasks/*/start"
+                        )
+                        .hasRole("HOUSEKEEPING")
+
+                        .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/housekeeping/tasks/*/complete"
+                        )
+                        .hasRole("HOUSEKEEPING")
+
+                        .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/housekeeping/tasks/*/cancel"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER")
+
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/maintenance/tasks"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST")
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/maintenance/my"
+                        )
+                        .hasRole("MAINTENANCE")
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/maintenance/rooms/*/tasks"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "MAINTENANCE")
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/maintenance/tasks/*"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "MAINTENANCE")
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/maintenance/tasks"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "MAINTENANCE")
+
+                        .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/maintenance/tasks/*/assign"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER")
+
+                        .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/maintenance/tasks/*/start"
+                        )
+                        .hasRole("MAINTENANCE")
+
+                        .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/maintenance/tasks/*/complete"
+                        )
+                        .hasRole("MAINTENANCE")
+
+                        .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/maintenance/tasks/*/cancel"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER")
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/inventory/low-stock"
+                        )
+                        .hasAnyRole(
+                                "ADMIN",
+                                "MANAGER",
+                                "RECEPTIONIST",
+                                "STAFF",
+                                "HOUSEKEEPING"
+                        )
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/inventory/transactions"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER", "STAFF")
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/inventory/items/*/transactions"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER", "STAFF")
+
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/inventory/stock-in"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER", "STAFF")
+
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/inventory/stock-out"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER", "STAFF")
+
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/inventory/adjustment"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER", "STAFF")
+
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/inventory/items"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER")
+
+                        .requestMatchers(
+                                HttpMethod.PUT,
+                                "/api/inventory/items/*"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER")
+
+                        .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/inventory/items/*/deactivate"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER")
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/inventory/items/*"
+                        )
+                        .hasAnyRole(
+                                "ADMIN",
+                                "MANAGER",
+                                "RECEPTIONIST",
+                                "STAFF",
+                                "HOUSEKEEPING"
+                        )
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/inventory/items"
+                        )
+                        .hasAnyRole(
+                                "ADMIN",
+                                "MANAGER",
+                                "RECEPTIONIST",
+                                "STAFF",
+                                "HOUSEKEEPING"
+                        )
 
                         .requestMatchers("/api/finance/**", "/api/accountant/**")
                         .hasAnyRole("ADMIN", "MANAGER", "ACCOUNTANT")
@@ -144,10 +354,28 @@ public class SecurityConfig {
                         .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST")
 
                         .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/invoices/*/amounts"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "ACCOUNTANT")
+
+                        .requestMatchers(
+                                HttpMethod.DELETE,
+                                "/api/invoices/*"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER")
+
+                        .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/invoices/my"
                         )
                         .hasRole("CUSTOMER")
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/invoices"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "ACCOUNTANT")
 
                         .requestMatchers(
                                 HttpMethod.GET,
@@ -160,6 +388,24 @@ public class SecurityConfig {
                                 "/api/payments"
                         )
                         .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "CUSTOMER")
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/payments"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "ACCOUNTANT")
+
+                        .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/payments/*/refund"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER", "ACCOUNTANT")
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/payments/*/status"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "ACCOUNTANT", "CUSTOMER")
 
                         .requestMatchers(
                                 HttpMethod.GET,

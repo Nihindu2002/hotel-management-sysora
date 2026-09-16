@@ -1,8 +1,13 @@
 package com.hotel.hotel_management.reservation;
 
 import com.hotel.hotel_management.common.ForbiddenException;
+import com.hotel.hotel_management.housekeeping.CreateHousekeepingTaskRequest;
+import com.hotel.hotel_management.housekeeping.HousekeepingService;
+import com.hotel.hotel_management.housekeeping.HousekeepingTaskPriority;
+import com.hotel.hotel_management.housekeeping.HousekeepingTaskType;
 import com.hotel.hotel_management.room.Room;
 import com.hotel.hotel_management.room.RoomRepository;
+import com.hotel.hotel_management.room.RoomStatus;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -14,13 +19,16 @@ public class ReservationService {
 
     private final ReservationRepository reservationRepository;
     private final RoomRepository roomRepository;
+    private final HousekeepingService housekeepingService;
 
     public ReservationService(
             ReservationRepository reservationRepository,
-            RoomRepository roomRepository) {
+            RoomRepository roomRepository,
+            HousekeepingService housekeepingService) {
 
         this.reservationRepository = reservationRepository;
         this.roomRepository = roomRepository;
+        this.housekeepingService = housekeepingService;
     }
 
     public Reservation createReservation(
@@ -40,6 +48,12 @@ public class ReservationService {
                 .orElseThrow(() ->
                         new IllegalArgumentException(
                                 "Room not found"));
+
+        if (room.getStatus() == RoomStatus.CLEANING
+                || room.getStatus() == RoomStatus.MAINTENANCE) {
+            throw new IllegalArgumentException(
+                    "Room is not available for reservation");
+        }
 
         if (!isRoomAvailable(
                 request.roomId(),
@@ -187,9 +201,22 @@ public Reservation checkOutReservation(
                 "Only checked-in reservations can be checked out");
     }
 
-    return reservationRepository.updateStatus(
+    Reservation updatedReservation = reservationRepository.updateStatus(
             reservationId,
             ReservationStatus.CHECKED_OUT);
+
+    roomRepository.updateStatus(
+            reservation.getRoomId(),
+            RoomStatus.CLEANING);
+
+    housekeepingService.createTask(
+            new CreateHousekeepingTaskRequest(
+                    reservation.getRoomId(),
+                    HousekeepingTaskType.CHECKOUT_CLEANING,
+                    HousekeepingTaskPriority.HIGH,
+                    "Checkout cleaning for reservation " + reservationId));
+
+    return updatedReservation;
 }
 public boolean isRoomAvailable(
         String roomId,
@@ -211,9 +238,14 @@ public boolean isRoomAvailable(
                 "Check-in date cannot be in the past");
     }
 
-    if (roomRepository.findById(roomId).isEmpty()) {
-        throw new IllegalArgumentException(
-                "Room not found");
+    Room room = roomRepository.findById(roomId)
+            .orElseThrow(() ->
+                    new IllegalArgumentException(
+                            "Room not found"));
+
+    if (room.getStatus() == RoomStatus.CLEANING
+            || room.getStatus() == RoomStatus.MAINTENANCE) {
+        return false;
     }
 
     List<Reservation> reservations =

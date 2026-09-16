@@ -4,6 +4,7 @@ import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.Firestore;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -271,6 +272,138 @@ public java.util.List<Invoice> findByCustomerUid(
     } catch (ExecutionException exception) {
         throw new IllegalStateException(
                 "Unable to find customer invoices", exception);
+    }
+}
+
+public java.util.List<Invoice> findAll() {
+
+    try {
+        var documents =
+                firestore.collection("invoices")
+                        .get()
+                        .get()
+                        .getDocuments();
+
+        java.util.List<Invoice> invoices =
+                new java.util.ArrayList<>();
+
+        for (var snapshot : documents) {
+
+            Invoice invoice = new Invoice();
+
+            invoice.setInvoiceId(
+                    snapshot.getString("invoiceId"));
+
+            invoice.setReservationId(
+                    snapshot.getString("reservationId"));
+
+            invoice.setCustomerUid(
+                    snapshot.getString("customerUid"));
+
+            invoice.setRoomId(
+                    snapshot.getString("roomId"));
+
+            invoice.setRoomCharge(
+                    snapshot.getDouble("roomCharge"));
+
+            invoice.setAdditionalCharges(
+                    snapshot.getDouble("additionalCharges"));
+
+            invoice.setDiscount(
+                    snapshot.getDouble("discount"));
+
+            invoice.setTotalAmount(
+                    snapshot.getDouble("totalAmount"));
+
+            invoice.setStatus(
+                    snapshot.getString("status"));
+
+            if (snapshot.getTimestamp("createdAt") != null) {
+                invoice.setCreatedAt(
+                        snapshot.getTimestamp("createdAt")
+                                .toDate()
+                                .toInstant());
+            }
+
+            if (snapshot.getTimestamp("updatedAt") != null) {
+                invoice.setUpdatedAt(
+                        snapshot.getTimestamp("updatedAt")
+                                .toDate()
+                                .toInstant());
+            }
+
+            invoices.add(invoice);
+        }
+
+        return invoices;
+
+    } catch (InterruptedException exception) {
+        Thread.currentThread().interrupt();
+        throw new IllegalStateException(
+                "Unable to find invoices", exception);
+
+    } catch (ExecutionException exception) {
+        throw new IllegalStateException(
+                "Unable to find invoices", exception);
+    }
+}
+
+public Invoice updateAmounts(
+        String invoiceId,
+        Double additionalCharges,
+        Double discount,
+        Double totalAmount) {
+
+    DocumentReference document =
+            firestore.collection("invoices")
+                    .document(invoiceId);
+
+    Map<String, Object> updates = new HashMap<>();
+
+    updates.put("additionalCharges", additionalCharges);
+    updates.put("discount", discount);
+    updates.put("totalAmount", totalAmount);
+    updates.put("updatedAt", Instant.now());
+
+    try {
+        document.update(updates).get();
+
+        return findById(invoiceId)
+                .orElseThrow(() ->
+                        new IllegalArgumentException(
+                                "Invoice not found"));
+
+    } catch (InterruptedException exception) {
+        Thread.currentThread().interrupt();
+        throw new IllegalStateException(
+                "Unable to update invoice", exception);
+
+    } catch (ExecutionException exception) {
+        throw new IllegalStateException(
+                "Unable to update invoice", exception);
+    }
+}
+
+
+public void delete(String invoiceId) {
+
+    DocumentReference document =
+            firestore.collection("invoices")
+                    .document(invoiceId);
+
+    try {
+        document.delete().get();
+
+    } catch (InterruptedException exception) {
+        Thread.currentThread().interrupt();
+        throw new IllegalStateException(
+                "Unable to delete invoice",
+                exception);
+
+    } catch (ExecutionException exception) {
+        throw new IllegalStateException(
+                "Unable to delete invoice",
+                exception);
     }
 }
 }

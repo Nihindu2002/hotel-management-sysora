@@ -220,4 +220,164 @@ public java.util.List<Payment> findByInvoiceId(
                 "Unable to find payments", exception);
     }
 }
+
+public java.util.List<Payment> findAll() {
+
+    try {
+        var documents =
+                firestore.collection("payments")
+                        .get()
+                        .get()
+                        .getDocuments();
+
+        java.util.List<Payment> payments =
+                new java.util.ArrayList<>();
+
+        for (var snapshot : documents) {
+
+            Payment payment = new Payment();
+
+            payment.setPaymentId(
+                    snapshot.getString("paymentId"));
+            payment.setInvoiceId(
+                    snapshot.getString("invoiceId"));
+            payment.setReservationId(
+                    snapshot.getString("reservationId"));
+            payment.setCustomerUid(
+                    snapshot.getString("customerUid"));
+            payment.setAmount(
+                    snapshot.getDouble("amount"));
+            payment.setPaymentMethod(
+                    snapshot.getString("paymentMethod"));
+            payment.setStatus(
+                    snapshot.getString("status"));
+
+            if (snapshot.getTimestamp("createdAt") != null) {
+                payment.setCreatedAt(
+                        snapshot.getTimestamp("createdAt")
+                                .toDate()
+                                .toInstant());
+            }
+
+            if (snapshot.getTimestamp("updatedAt") != null) {
+                payment.setUpdatedAt(
+                        snapshot.getTimestamp("updatedAt")
+                                .toDate()
+                                .toInstant());
+            }
+
+            payments.add(payment);
+        }
+
+        return payments;
+
+    } catch (InterruptedException exception) {
+        Thread.currentThread().interrupt();
+        throw new IllegalStateException(
+                "Unable to find payments", exception);
+
+    } catch (ExecutionException exception) {
+        throw new IllegalStateException(
+                "Unable to find payments", exception);
+    }
+}
+
+public Payment updateStatus(
+        String paymentId,
+        PaymentStatus status) {
+
+    DocumentReference document =
+            firestore.collection("payments")
+                    .document(paymentId);
+
+    java.util.Map<String, Object> updates =
+            new java.util.HashMap<>();
+
+    updates.put("status", status.name());
+    updates.put("updatedAt", java.time.Instant.now());
+
+    try {
+        document.update(updates).get();
+
+        return findById(paymentId)
+                .orElseThrow(() ->
+                        new IllegalArgumentException(
+                                "Payment not found"));
+
+    } catch (InterruptedException exception) {
+        Thread.currentThread().interrupt();
+        throw new IllegalStateException(
+                "Unable to update payment status",
+                exception);
+
+    } catch (java.util.concurrent.ExecutionException exception) {
+        throw new IllegalStateException(
+                "Unable to update payment status",
+                exception);
+    }
+}
+public boolean hasPaymentsForInvoice(String invoiceId) {
+
+    try {
+        var documents =
+                firestore.collection("payments")
+                        .whereEqualTo("invoiceId", invoiceId)
+                        .limit(1)
+                        .get()
+                        .get()
+                        .getDocuments();
+
+        return !documents.isEmpty();
+
+    } catch (InterruptedException exception) {
+        Thread.currentThread().interrupt();
+        throw new IllegalStateException(
+                "Unable to check invoice payments",
+                exception);
+
+    } catch (ExecutionException exception) {
+        throw new IllegalStateException(
+                "Unable to check invoice payments",
+                exception);
+    }
+}
+public double getTotalRefundedForInvoice(String invoiceId) {
+
+    try {
+        var documents =
+                firestore.collection("payments")
+                        .whereEqualTo("invoiceId", invoiceId)
+                        .whereEqualTo(
+                                "status",
+                                PaymentStatus.REFUNDED.name())
+                        .get()
+                        .get()
+                        .getDocuments();
+
+        double total = 0.0;
+
+        for (var document : documents) {
+
+            Double amount =
+                    document.getDouble("amount");
+
+            if (amount != null) {
+                total += amount;
+            }
+        }
+
+        return total;
+
+    } catch (InterruptedException exception) {
+        Thread.currentThread().interrupt();
+        throw new IllegalStateException(
+                "Unable to calculate refunded amount",
+                exception);
+
+    } catch (ExecutionException exception) {
+        throw new IllegalStateException(
+                "Unable to calculate refunded amount",
+                exception);
+    }
+}
 }

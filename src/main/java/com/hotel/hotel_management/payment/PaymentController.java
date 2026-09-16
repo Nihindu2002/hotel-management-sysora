@@ -38,10 +38,21 @@ public class PaymentController {
 
     @GetMapping("/{paymentId}")
     public ResponseEntity<Payment> getPayment(
-            @PathVariable String paymentId) {
+            @PathVariable String paymentId,
+            @AuthenticationPrincipal FirebaseToken token,
+            Authentication authentication) {
+
+        boolean isCustomer =
+                authentication.getAuthorities()
+                        .stream()
+                        .anyMatch(authority ->
+                                authority.getAuthority()
+                                        .equals("ROLE_CUSTOMER"));
 
         return ResponseEntity.ok(
-                paymentService.getPaymentById(paymentId));
+                paymentService.getPaymentById(
+                        paymentId,
+                        isCustomer ? token.getUid() : null));
     }
 
     @GetMapping("/invoice/{invoiceId}")
@@ -61,5 +72,41 @@ public class PaymentController {
                 paymentService.getPaymentsByInvoice(
                         invoiceId,
                         isCustomer ? token.getUid() : null));
+    }
+
+    @GetMapping
+public ResponseEntity<java.util.List<Payment>> getAllPayments() {
+    return ResponseEntity.ok(
+            paymentService.getAllPayments());
+}
+
+@PatchMapping("/{paymentId}/refund")
+public ResponseEntity<Payment> refundPayment(
+        @PathVariable String paymentId) {
+
+    return ResponseEntity.ok(
+            paymentService.refundPayment(paymentId));
+}
+
+    @GetMapping("/{paymentId}/status")
+    public ResponseEntity<String> getPaymentStatus(
+            @PathVariable String paymentId,
+            @AuthenticationPrincipal FirebaseToken token,
+            Authentication authentication) {
+
+        boolean isCustomer =
+                authentication.getAuthorities()
+                        .stream()
+                        .anyMatch(authority ->
+                                authority.getAuthority()
+                                        .equals("ROLE_CUSTOMER"));
+
+        Payment payment =
+                paymentService.getPaymentById(
+                        paymentId,
+                        isCustomer ? token.getUid() : null);
+
+        return ResponseEntity.ok(
+                payment.getStatus());
     }
 }

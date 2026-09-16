@@ -2,6 +2,7 @@ package com.hotel.hotel_management.payment;
 
 import com.hotel.hotel_management.invoice.Invoice;
 import com.hotel.hotel_management.invoice.InvoiceRepository;
+import com.hotel.hotel_management.invoice.InvoiceStatus;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -65,14 +66,14 @@ public class PaymentService {
 
             invoiceRepository.updateStatus(
                     invoice.getInvoiceId(),
-                    com.hotel.hotel_management.invoice.InvoiceStatus.PAID
+                    InvoiceStatus.PAID
             );
 
         } else {
 
             invoiceRepository.updateStatus(
                     invoice.getInvoiceId(),
-                    com.hotel.hotel_management.invoice.InvoiceStatus.PARTIALLY_PAID
+                    InvoiceStatus.PARTIALLY_PAID
             );
         }
 
@@ -90,16 +91,27 @@ public class PaymentService {
 
         payment.setCreatedAt(now);
         payment.setUpdatedAt(now);
-
         return paymentRepository.save(payment);
     }
 
-    public Payment getPaymentById(String paymentId) {
+    public Payment getPaymentById(
+            String paymentId,
+            String customerUid) {
 
-        return paymentRepository.findById(paymentId)
-                .orElseThrow(() ->
-                        new IllegalArgumentException(
-                                "Payment not found"));
+        Payment payment =
+                paymentRepository.findById(paymentId)
+                        .orElseThrow(() ->
+                                new IllegalArgumentException(
+                                        "Payment not found"));
+
+        if (customerUid != null
+                && !payment.getCustomerUid().equals(customerUid)) {
+
+            throw new com.hotel.hotel_management.security.ForbiddenException(
+                    "You are not authorized to view this payment");
+        }
+
+        return payment;
     }
 
 
@@ -121,5 +133,79 @@ public class PaymentService {
     }
 
     return paymentRepository.findByInvoiceId(invoiceId);
+}
+
+public java.util.List<Payment> getAllPayments() {
+    return paymentRepository.findAll();
+}
+public Payment refundPayment(String paymentId) {
+
+    Payment payment =
+            paymentRepository.findById(paymentId)
+                    .orElseThrow(() ->
+                            new IllegalArgumentException(
+                                    "Payment not found"));
+
+    if (payment.getStatus().equals(
+            PaymentStatus.REFUNDED.name())) {
+
+        throw new IllegalArgumentException(
+                "Payment is already refunded");
+    }
+
+    if (!payment.getStatus().equals(
+            PaymentStatus.COMPLETED.name())) {
+
+        throw new IllegalArgumentException(
+                "Only completed payments can be refunded");
+    }
+
+    Payment refundedPayment =
+            paymentRepository.updateStatus(
+                    paymentId,
+                    PaymentStatus.REFUNDED);
+
+    Invoice invoice =
+            invoiceRepository.findById(payment.getInvoiceId())
+                    .orElseThrow(() ->
+                            new IllegalArgumentException(
+                                    "Invoice not found"));
+
+    double totalPaid =
+            paymentRepository.getTotalPaidForInvoice(
+                    invoice.getInvoiceId());
+
+    if (totalPaid >= invoice.getTotalAmount()) {
+
+        invoiceRepository.updateStatus(
+                invoice.getInvoiceId(),
+                InvoiceStatus.PAID);
+
+    } else if (totalPaid > 0) {
+
+        invoiceRepository.updateStatus(
+                invoice.getInvoiceId(),
+                InvoiceStatus.PARTIALLY_PAID);
+
+    } else {
+
+        invoiceRepository.updateStatus(
+                invoice.getInvoiceId(),
+                InvoiceStatus.UNPAID);
+    }
+
+    return refundedPayment;
+}
+
+public double getTotalPaidForInvoice(String invoiceId) {
+    return paymentRepository.getTotalPaidForInvoice(invoiceId);
+}
+
+public boolean hasPaymentsForInvoice(String invoiceId) {
+    return paymentRepository.hasPaymentsForInvoice(invoiceId);
+}
+
+public double getTotalRefundedForInvoice(String invoiceId) {
+    return paymentRepository.getTotalRefundedForInvoice(invoiceId);
 }
 }

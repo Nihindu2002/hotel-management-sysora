@@ -1,5 +1,6 @@
 package com.hotel.hotel_management.invoice;
 
+import com.hotel.hotel_management.payment.PaymentService;
 import com.hotel.hotel_management.reservation.Reservation;
 import com.hotel.hotel_management.reservation.ReservationRepository;
 import com.hotel.hotel_management.room.Room;
@@ -8,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -16,15 +18,18 @@ public class InvoiceService {
     private final InvoiceRepository invoiceRepository;
     private final ReservationRepository reservationRepository;
     private final RoomRepository roomRepository;
+    private final PaymentService paymentService;
 
     public InvoiceService(
             InvoiceRepository invoiceRepository,
             ReservationRepository reservationRepository,
-            RoomRepository roomRepository) {
+            RoomRepository roomRepository,
+            PaymentService paymentService) {
 
         this.invoiceRepository = invoiceRepository;
         this.reservationRepository = reservationRepository;
         this.roomRepository = roomRepository;
+        this.paymentService = paymentService;
     }
 
     public Invoice createInvoice(String reservationId) {
@@ -93,9 +98,85 @@ public class InvoiceService {
                                 "Invoice not found"));
     }
 
-    public java.util.List<Invoice> getMyInvoices(
-        String customerUid) {
+    public List<Invoice> getAllInvoices() {
+        return invoiceRepository.findAll();
+    }
 
-    return invoiceRepository.findByCustomerUid(customerUid);
-}
+    public List<Invoice> getMyInvoices(String customerUid) {
+        return invoiceRepository.findByCustomerUid(customerUid);
+    }
+
+    public Invoice updateInvoiceAmounts(
+            String invoiceId,
+            UpdateInvoiceRequest request) {
+
+        Invoice invoice = getInvoiceById(invoiceId);
+
+        double totalAmount =
+                invoice.getRoomCharge()
+                        + request.additionalCharges()
+                        - request.discount();
+
+        if (totalAmount < 0) {
+            throw new IllegalArgumentException(
+                    "Invoice total cannot be negative");
+        }
+
+        double totalPaid =
+                paymentService.getTotalPaidForInvoice(invoiceId);
+
+        if (totalAmount < totalPaid) {
+            throw new IllegalArgumentException(
+                    "Invoice total cannot be less than the amount already paid");
+        }
+
+        Invoice updatedInvoice =
+                invoiceRepository.updateAmounts(
+                        invoiceId,
+                        request.additionalCharges(),
+                        request.discount(),
+                        totalAmount);
+
+        double totalPaidAfterUpdate =
+                paymentService.getTotalPaidForInvoice(invoiceId);
+
+        if (totalPaidAfterUpdate >= totalAmount) {
+
+            updatedInvoice =
+                    invoiceRepository.updateStatus(
+                            invoiceId,
+                            InvoiceStatus.PAID);
+
+        } else if (totalPaidAfterUpdate > 0) {
+
+            updatedInvoice =
+                    invoiceRepository.updateStatus(
+                            invoiceId,
+                            InvoiceStatus.PARTIALLY_PAID);
+
+        } else {
+
+            updatedInvoice =
+                    invoiceRepository.updateStatus(
+                            invoiceId,
+                            InvoiceStatus.UNPAID);
+        }
+
+        return updatedInvoice;
+    }
+
+    public void deleteInvoice(String invoiceId) {
+
+        Invoice invoice = getInvoiceById(invoiceId);
+
+        double totalPaid =
+                paymentService.getTotalPaidForInvoice(invoiceId);
+
+        if (totalPaid > 0) {
+            throw new IllegalArgumentException(
+                    "Cannot delete an invoice that has payments");
+        }
+
+        invoiceRepository.delete(invoiceId);
+    }
 }

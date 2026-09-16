@@ -23,6 +23,11 @@ public class InvoiceController {
                 invoiceService.createInvoice(reservationId));
     }
 
+    @GetMapping
+    public ResponseEntity<java.util.List<Invoice>> getAllInvoices() {
+        return ResponseEntity.ok(
+                invoiceService.getAllInvoices());
+    }
     @GetMapping("/{invoiceId}")
     public ResponseEntity<Invoice> getInvoice(
             @PathVariable String invoiceId) {
@@ -39,4 +44,25 @@ public class InvoiceController {
                 invoiceService.getMyInvoices(
                         token.getUid()));
     }
+
+    @PatchMapping("/{invoiceId}/amounts")
+    public ResponseEntity<Invoice> updateInvoiceAmounts(
+            @PathVariable String invoiceId,
+            @jakarta.validation.Valid
+            @RequestBody UpdateInvoiceRequest request) {
+
+        return ResponseEntity.ok(
+                invoiceService.updateInvoiceAmounts(
+                        invoiceId,
+                        request));
+    }
+
+    @DeleteMapping("/{invoiceId}")
+public ResponseEntity<Void> deleteInvoice(
+        @PathVariable String invoiceId) {
+
+    invoiceService.deleteInvoice(invoiceId);
+
+    return ResponseEntity.noContent().build();
+}
 }
