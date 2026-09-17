@@ -127,7 +127,14 @@ export const NAVIGATION_ITEMS: NavItem[] = [
     label: 'Inventory',
     path: '/inventory',
     icon: 'inventory',
-    allowedRoles: ['ADMIN', 'MANAGER'],
+    allowedRoles: [
+      'ADMIN',
+      'MANAGER',
+      'RECEPTIONIST',
+      'STAFF',
+      'HOUSEKEEPING',
+      'MAINTENANCE',
+    ],
   },
 
   // ── Administration & Management ──

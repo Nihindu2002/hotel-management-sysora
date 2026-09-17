@@ -220,7 +220,92 @@ room is completed or cancelled, the room is resolved in this order:
 4. A `CONFIRMED`/`PENDING` reservation has not yet checked out → `RESERVED`
 5. Otherwise → `AVAILABLE`
 
-## G. Admin role
+## G. Inventory
+
+| Endpoint | Allowed roles |
+| --- | --- |
+| `GET /api/inventory/dashboard` | `ADMIN`, `MANAGER`, `RECEPTIONIST`, `STAFF`, `HOUSEKEEPING`, `MAINTENANCE` |
+| `GET /api/inventory/items`, `/api/inventory/items/{id}` | `ADMIN`, `MANAGER`, `RECEPTIONIST`, `STAFF`, `HOUSEKEEPING`, `MAINTENANCE` |
+| `GET /api/inventory/low-stock` | `ADMIN`, `MANAGER`, `RECEPTIONIST`, `STAFF`, `HOUSEKEEPING`, `MAINTENANCE` |
+| `GET /api/inventory/transactions` | `ADMIN`, `MANAGER`, `STAFF` |
+| `GET /api/inventory/items/{id}/transactions` | `ADMIN`, `MANAGER`, `STAFF` |
+| `POST /api/inventory/items` | `ADMIN`, `MANAGER` |
+| `PUT /api/inventory/items/{id}` | `ADMIN`, `MANAGER` |
+| `PATCH /api/inventory/items/{id}/deactivate` | `ADMIN`, `MANAGER` |
+| `POST /api/inventory/stock-in` | `ADMIN`, `MANAGER`, `STAFF` |
+| `POST /api/inventory/stock-out` | `ADMIN`, `MANAGER`, `STAFF` |
+| `POST /api/inventory/adjustment` | `ADMIN`, `MANAGER`, `STAFF` |
+
+Expected Postman checks:
+
+| Token role | Request | Expected status |
+| --- | --- | --- |
+| `MANAGER` | `POST /api/inventory/items` | 200 |
+| `MANAGER` | `POST /api/inventory/stock-in` | 200 |
+| `STAFF` | `POST /api/inventory/stock-in` | 200 |
+| `STAFF` | `POST /api/inventory/items` | 403 |
+| `RECEPTIONIST` | `GET /api/inventory/items` | 200 |
+| `RECEPTIONIST` | `GET /api/inventory/transactions` | 403 |
+| `HOUSEKEEPING` | `GET /api/inventory/items` | 200 |
+| `MAINTENANCE` | `GET /api/inventory/low-stock` | 200 |
+| `MAINTENANCE` | `POST /api/inventory/stock-out` | 403 |
+| `CUSTOMER` | any `/api/inventory/**` | 403 |
+
+### Item fields
+
+`itemName`, `category`, `description`, `unit`, `minimumStock`, `unitCost`,
+`supplierId`. Validation rejects an empty `itemName` and any negative
+`minimumStock` or `unitCost` (HTTP 400).
+
+`quantity` is **not** an editable field. New items are created at zero and the
+quantity only moves through stock transactions, so every change is auditable.
+`status` is only changed through the deactivate endpoint.
+
+`supplierId` is free text — there is no supplier entity in the system.
+
+### Stock movements
+
+| Type | Rule |
+| --- | --- |
+| `STOCK_IN` | `quantity > 0`. Increases the item quantity by `quantity`. |
+| `STOCK_OUT` | `quantity > 0` and `quantity <= available`. Rejected with HTTP 400 `Insufficient stock available...` otherwise. Decreases the quantity. |
+| `ADJUSTMENT` | `newQuantity >= 0`. Sets the quantity to exactly `newQuantity`; the recorded movement is the absolute difference. |
+
+All three are rejected with HTTP 400 if the item is `INACTIVE`.
+
+Each movement stores `previousQuantity` and `newQuantity`, the performing user
+(`performedBy`), and a timestamp, which the item details page renders as
+`previous → new`.
+
+### Finance integration
+
+`STOCK_IN` is the only movement that touches Finance:
+
+```text
+STOCK_IN quantity × unitCost
+        ↓
+Finance EXPENSE, category = INVENTORY
+        referenceId = inventory transactionId
+```
+
+- `STOCK_OUT` and `ADJUSTMENT` never create a finance transaction
+  (`recordInventoryExpense` returns early for any non-`STOCK_IN` type).
+- A stock-in with `unitCost <= 0` creates no finance transaction.
+- Replaying the *same* transaction id is deduplicated — `recordInventoryExpense`
+  skips a `referenceId` that already has an ACTIVE record.
+
+Note that each stock-in request generates a **new** transaction id, so two
+identical stock-in requests are legitimately two separate receipts and produce
+two expenses. The client guards against accidental double submission by
+disabling the submit button while a request is in flight.
+
+### Low stock
+
+An item is low stock when it is `ACTIVE` and `quantity <= minimumStock`. Out of
+stock (`quantity <= 0`) is a subset of that, reported separately on the
+dashboard.
+
+## H. Admin role
 
 ```http
 GET http://localhost:8080/api/admin/test

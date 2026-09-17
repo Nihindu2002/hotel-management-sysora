@@ -27,10 +27,6 @@ export default function InventoryDashboardPage() {
   const { user } = useAuth();
 
   const isAdminOrManager = user?.role === 'ADMIN' || user?.role === 'MANAGER';
-  // The transaction feed is only readable by these roles; others see the
-  // dashboard metrics but not the audit log.
-  const canReadTransactions =
-    isAdminOrManager || user?.role === 'STAFF';
 
   const [stats, setStats] = useState<InventoryDashboard>(EMPTY);
   const [items, setItems] = useState<InventoryItem[]>([]);

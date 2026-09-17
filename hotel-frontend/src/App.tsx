@@ -14,6 +14,9 @@ import MaintenanceDashboard from './pages/maintenance/MaintenanceDashboard';
 import MaintenanceTasks from './pages/maintenance/MaintenanceTasks';
 import MaintenanceTaskDetails from './pages/maintenance/MaintenanceTaskDetails';
 import MaintenanceTaskCreate from './pages/maintenance/MaintenanceTaskCreate';
+import InventoryDashboardPage from './pages/inventory/InventoryDashboardPage';
+import InventoryItems from './pages/inventory/InventoryItems';
+import InventoryItemDetails from './pages/inventory/InventoryItemDetails';
 import AccountantDashboard from './pages/accountant/AccountantDashboard';
 import CustomerDashboard from './pages/customer/CustomerDashboard';
 import Unauthorized from './pages/Unauthorized';
@@ -170,8 +173,24 @@ function App() {
           </Route>
 
 
-          <Route element={<RoleRoute allowedRoles={['ADMIN', 'MANAGER']} />}>
-            <Route path="/inventory" element={<PlaceholderPage title="Inventory" />} />
+          {/* Inventory — any role with backend read access */}
+          <Route
+            element={
+              <RoleRoute
+                allowedRoles={[
+                  'ADMIN',
+                  'MANAGER',
+                  'RECEPTIONIST',
+                  'STAFF',
+                  'HOUSEKEEPING',
+                  'MAINTENANCE',
+                ]}
+              />
+            }
+          >
+            <Route path="/inventory" element={<InventoryDashboardPage />} />
+            <Route path="/inventory/items" element={<InventoryItems />} />
+            <Route path="/inventory/items/:itemId" element={<InventoryItemDetails />} />
           </Route>
 
           <Route element={<RoleRoute allowedRoles={['ADMIN', 'MANAGER', 'ACCOUNTANT']} />}>
