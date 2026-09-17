@@ -10,24 +10,45 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 
 @Repository
 public class UserRepository {
 
     private final Firestore firestore;
+    private final Map<String, CachedUser> userCache = new ConcurrentHashMap<>();
+    private static final long CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+    private record CachedUser(User user, long expiryTime) {}
 
     public UserRepository(Firestore firestore) {
         this.firestore = firestore;
     }
 
     public Optional<User> findByUid(String uid) {
+        if (uid == null) {
+            return Optional.empty();
+        }
+
+        CachedUser cached = userCache.get(uid);
+        if (cached != null && System.currentTimeMillis() < cached.expiryTime()) {
+            return Optional.of(cached.user());
+        }
+
         try {
             DocumentSnapshot document = firestore.collection("users")
                     .document(uid)
                     .get()
                     .get();
-            return document.exists() ? Optional.of(toUser(document)) : Optional.empty();
+            if (document.exists()) {
+                User user = toUser(document);
+                userCache.put(uid, new CachedUser(user, System.currentTimeMillis() + CACHE_TTL_MS));
+                return Optional.of(user);
+            } else {
+                userCache.remove(uid);
+                return Optional.empty();
+            }
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Unable to read user profile from Firestore", exception);
@@ -51,6 +72,7 @@ public class UserRepository {
 
         try {
             firestore.collection("users").document(uid).set(profile).get();
+            userCache.remove(uid);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Unable to save user profile to Firestore", exception);
@@ -73,6 +95,7 @@ public class UserRepository {
             updates.put("updatedAt", Date.from(Instant.now()));
 
             documentReference.update(updates).get();
+            userCache.remove(uid);
 
             return findByUid(uid)
                     .orElseThrow(() ->
@@ -99,6 +122,7 @@ public class UserRepository {
                     .document(uid)
                     .update(updates)
                     .get();
+            userCache.remove(uid);
 
             return findByUid(uid)
                     .orElseThrow(() ->
@@ -113,6 +137,16 @@ public class UserRepository {
             throw new IllegalStateException(
                     "Unable to update user role", exception);
         }
+    }
+
+    public void invalidateCache(String uid) {
+        if (uid != null) {
+            userCache.remove(uid);
+        }
+    }
+
+    public void clearCache() {
+        userCache.clear();
     }
 
     private User toUser(DocumentSnapshot document) {

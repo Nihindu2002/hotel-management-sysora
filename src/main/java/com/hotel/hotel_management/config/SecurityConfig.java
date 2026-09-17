@@ -116,9 +116,15 @@ public class SecurityConfig {
 
                         .requestMatchers(
                                 HttpMethod.PATCH,
+                                "/api/reservations/*/cancel"
+                        )
+                        .hasRole("CUSTOMER")
+
+                        .requestMatchers(
+                                HttpMethod.PATCH,
                                 "/api/reservations/*/cancel-by-staff"
                         )
-                        .hasAnyRole("ADMIN", "MANAGER")
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST")
 
                         .requestMatchers(
                                 HttpMethod.PATCH,
@@ -428,7 +434,8 @@ public class SecurityConfig {
 
                         .requestMatchers(
                                 HttpMethod.GET,
-                                "/api/invoices/*"
+                                "/api/invoices/*",
+                                "/api/invoices/reservation/*"
                         )
                         .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "CUSTOMER")
 
@@ -455,6 +462,18 @@ public class SecurityConfig {
                                 "/api/payments/*/status"
                         )
                         .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "ACCOUNTANT", "CUSTOMER")
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/payments/my"
+                        )
+                        .hasRole("CUSTOMER")
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/payments/invoice/*"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "CUSTOMER", "ACCOUNTANT")
 
                         .requestMatchers(
                                 HttpMethod.GET,

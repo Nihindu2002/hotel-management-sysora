@@ -4,6 +4,10 @@ import com.hotel.hotel_management.invoice.Invoice;
 import com.hotel.hotel_management.invoice.InvoiceRepository;
 import com.hotel.hotel_management.invoice.InvoiceStatus;
 import com.hotel.hotel_management.finance.FinanceService;
+import com.hotel.hotel_management.reservation.Reservation;
+import com.hotel.hotel_management.reservation.ReservationRepository;
+import com.hotel.hotel_management.reservation.ReservationStatus;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -15,15 +19,27 @@ public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final InvoiceRepository invoiceRepository;
     private final FinanceService financeService;
+    private final ReservationRepository reservationRepository;
+
+    @Autowired
+    public PaymentService(
+            PaymentRepository paymentRepository,
+            InvoiceRepository invoiceRepository,
+            FinanceService financeService,
+            ReservationRepository reservationRepository) {
+
+        this.paymentRepository = paymentRepository;
+        this.invoiceRepository = invoiceRepository;
+        this.financeService = financeService;
+        this.reservationRepository = reservationRepository;
+    }
 
     public PaymentService(
             PaymentRepository paymentRepository,
             InvoiceRepository invoiceRepository,
             FinanceService financeService) {
 
-        this.paymentRepository = paymentRepository;
-        this.invoiceRepository = invoiceRepository;
-        this.financeService = financeService;
+        this(paymentRepository, invoiceRepository, financeService, null);
     }
 
     public Payment createPayment(
@@ -52,6 +68,21 @@ public class PaymentService {
                 && !invoice.getCustomerUid().equals(customerUid)) {
             throw new com.hotel.hotel_management.common.ForbiddenException(
                     "You are not authorized to pay this invoice");
+        }
+
+        if (reservationRepository != null && invoice.getReservationId() != null) {
+            Reservation reservation =
+                    reservationRepository.findById(invoice.getReservationId()).orElse(null);
+            if (reservation != null) {
+                if (reservation.getStatus() == ReservationStatus.PENDING) {
+                    throw new IllegalArgumentException(
+                            "Cannot make payment for a pending reservation. It must be confirmed by staff first.");
+                }
+                if (reservation.getStatus() == ReservationStatus.CANCELLED) {
+                    throw new IllegalArgumentException(
+                            "Cannot make payment for a cancelled reservation.");
+                }
+            }
         }
 
         double totalPaid =

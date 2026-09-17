@@ -1,8 +1,10 @@
 package com.hotel.hotel_management.invoice;
 
+import com.hotel.hotel_management.payment.Payment;
 import com.hotel.hotel_management.payment.PaymentService;
 import com.hotel.hotel_management.reservation.Reservation;
 import com.hotel.hotel_management.reservation.ReservationRepository;
+import com.hotel.hotel_management.reservation.ReservationStatus;
 import com.hotel.hotel_management.room.Room;
 import com.hotel.hotel_management.room.RoomRepository;
 import org.springframework.stereotype.Service;
@@ -10,7 +12,9 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class InvoiceService {
@@ -48,6 +52,16 @@ public class InvoiceService {
                         .orElseThrow(() ->
                                 new IllegalArgumentException(
                                         "Reservation not found"));
+
+        if (reservation.getStatus() == ReservationStatus.PENDING) {
+            throw new IllegalArgumentException(
+                    "Cannot create invoice for a pending reservation. It must be confirmed by staff first.");
+        }
+
+        if (reservation.getStatus() == ReservationStatus.CANCELLED) {
+            throw new IllegalArgumentException(
+                    "Cannot create invoice for a cancelled reservation.");
+        }
 
         Room room =
                 roomRepository.findById(reservation.getRoomId())
@@ -92,18 +106,84 @@ public class InvoiceService {
 
     public Invoice getInvoiceById(String invoiceId) {
 
-        return invoiceRepository.findById(invoiceId)
+        Invoice invoice = invoiceRepository.findById(invoiceId)
                 .orElseThrow(() ->
                         new IllegalArgumentException(
                                 "Invoice not found"));
+
+        return enrichInvoice(invoice);
     }
 
     public List<Invoice> getAllInvoices() {
-        return invoiceRepository.findAll();
+        List<Invoice> invoices = invoiceRepository.findAll();
+        if (invoices == null || invoices.isEmpty()) {
+            return List.of();
+        }
+
+        List<Payment> payments = paymentService.getAllPayments();
+        Map<String, Double> paidByInvoiceId = (payments != null ? payments : List.<Payment>of()).stream()
+                .filter(p -> "COMPLETED".equalsIgnoreCase(p.getStatus()))
+                .filter(p -> p.getAmount() != null && p.getInvoiceId() != null)
+                .collect(Collectors.groupingBy(
+                        Payment::getInvoiceId,
+                        Collectors.summingDouble(Payment::getAmount)
+                ));
+
+        return invoices.stream()
+                .map(invoice -> {
+                    double paid = paidByInvoiceId.getOrDefault(invoice.getInvoiceId(), 0.0);
+                    invoice.setPaidAmount(paid);
+                    double total = invoice.getTotalAmount() != null ? invoice.getTotalAmount() : 0.0;
+                    invoice.setRemainingAmount(Math.max(0.0, total - paid));
+                    return invoice;
+                })
+                .toList();
     }
 
     public List<Invoice> getMyInvoices(String customerUid) {
-        return invoiceRepository.findByCustomerUid(customerUid);
+        List<Invoice> invoices = invoiceRepository.findByCustomerUid(customerUid);
+        if (invoices == null || invoices.isEmpty()) {
+            return List.of();
+        }
+
+        List<Payment> payments = paymentService.getCustomerPayments(customerUid);
+        Map<String, Double> paidByInvoiceId = (payments != null ? payments : List.<Payment>of()).stream()
+                .filter(p -> "COMPLETED".equalsIgnoreCase(p.getStatus()))
+                .filter(p -> p.getAmount() != null && p.getInvoiceId() != null)
+                .collect(Collectors.groupingBy(
+                        Payment::getInvoiceId,
+                        Collectors.summingDouble(Payment::getAmount)
+                ));
+
+        return invoices.stream()
+                .map(invoice -> {
+                    double paid = paidByInvoiceId.getOrDefault(invoice.getInvoiceId(), 0.0);
+                    invoice.setPaidAmount(paid);
+                    double total = invoice.getTotalAmount() != null ? invoice.getTotalAmount() : 0.0;
+                    invoice.setRemainingAmount(Math.max(0.0, total - paid));
+                    return invoice;
+                })
+                .toList();
+    }
+
+    public Invoice getInvoiceByReservationId(String reservationId) {
+        return invoiceRepository.findByReservationId(reservationId)
+                .map(this::enrichInvoice)
+                .orElse(null);
+    }
+
+    public Invoice enrichInvoice(Invoice invoice) {
+        if (invoice == null) {
+            return null;
+        }
+
+        double paid = paymentService.getTotalPaidForInvoice(invoice.getInvoiceId());
+        invoice.setPaidAmount(paid);
+
+        double total = invoice.getTotalAmount() != null ? invoice.getTotalAmount() : 0.0;
+        invoice.setRemainingAmount(Math.max(0.0, total - paid));
+
+        return invoice;
     }
 
     public Invoice updateInvoiceAmounts(

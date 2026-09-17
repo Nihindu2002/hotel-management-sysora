@@ -13,15 +13,30 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 
 @Repository
 public class StaffRepository {
 
     private final Firestore firestore;
+    private final Map<String, Staff> staffByIdCache = new ConcurrentHashMap<>();
+    private final Map<String, Staff> staffByUserUidCache = new ConcurrentHashMap<>();
+    private final Map<String, Staff> staffByEmployeeIdCache = new ConcurrentHashMap<>();
+    private volatile List<Staff> allStaffCache = null;
+    private volatile long cacheExpiryTime = 0L;
+    private static final long CACHE_TTL_MS = 60 * 1000L; // 60 seconds
 
     public StaffRepository(Firestore firestore) {
         this.firestore = firestore;
+    }
+
+    public void clearCache() {
+        allStaffCache = null;
+        staffByIdCache.clear();
+        staffByUserUidCache.clear();
+        staffByEmployeeIdCache.clear();
+        cacheExpiryTime = 0L;
     }
 
     public Staff save(Staff staff) {
@@ -43,6 +58,7 @@ public class StaffRepository {
 
         try {
             document.set(data).get();
+            clearCache();
             return staff;
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
@@ -53,6 +69,15 @@ public class StaffRepository {
     }
 
     public Optional<Staff> findById(String staffId) {
+        if (staffId == null) {
+            return Optional.empty();
+        }
+
+        Staff cached = staffByIdCache.get(staffId);
+        if (cached != null && System.currentTimeMillis() < cacheExpiryTime) {
+            return Optional.of(cached);
+        }
+
         DocumentReference document = firestore.collection("staff")
                 .document(staffId);
 
@@ -61,7 +86,9 @@ public class StaffRepository {
             if (!snapshot.exists()) {
                 return Optional.empty();
             }
-            return Optional.of(toStaff(snapshot));
+            Staff staff = toStaff(snapshot);
+            staffByIdCache.put(staffId, staff);
+            return Optional.of(staff);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Unable to find staff by id", exception);
@@ -71,6 +98,15 @@ public class StaffRepository {
     }
 
     public Optional<Staff> findByUserUid(String userUid) {
+        if (userUid == null) {
+            return Optional.empty();
+        }
+
+        Staff cached = staffByUserUidCache.get(userUid);
+        if (cached != null && System.currentTimeMillis() < cacheExpiryTime) {
+            return Optional.of(cached);
+        }
+
         try {
             var documents = firestore.collection("staff")
                     .whereEqualTo("userUid", userUid)
@@ -82,7 +118,9 @@ public class StaffRepository {
             if (documents.isEmpty()) {
                 return Optional.empty();
             }
-            return Optional.of(toStaff(documents.get(0)));
+            Staff staff = toStaff(documents.get(0));
+            staffByUserUidCache.put(userUid, staff);
+            return Optional.of(staff);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Unable to find staff by userUid", exception);
@@ -92,6 +130,15 @@ public class StaffRepository {
     }
 
     public Optional<Staff> findByEmployeeId(String employeeId) {
+        if (employeeId == null) {
+            return Optional.empty();
+        }
+
+        Staff cached = staffByEmployeeIdCache.get(employeeId);
+        if (cached != null && System.currentTimeMillis() < cacheExpiryTime) {
+            return Optional.of(cached);
+        }
+
         try {
             var documents = firestore.collection("staff")
                     .whereEqualTo("employeeId", employeeId)
@@ -103,7 +150,9 @@ public class StaffRepository {
             if (documents.isEmpty()) {
                 return Optional.empty();
             }
-            return Optional.of(toStaff(documents.get(0)));
+            Staff staff = toStaff(documents.get(0));
+            staffByEmployeeIdCache.put(employeeId, staff);
+            return Optional.of(staff);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Unable to find staff by employeeId", exception);
@@ -113,6 +162,12 @@ public class StaffRepository {
     }
 
     public List<Staff> findAll() {
+        long now = System.currentTimeMillis();
+        List<Staff> cached = allStaffCache;
+        if (cached != null && now < cacheExpiryTime) {
+            return new ArrayList<>(cached);
+        }
+
         try {
             var documents = firestore.collection("staff")
                     .get()
@@ -120,10 +175,26 @@ public class StaffRepository {
                     .getDocuments();
 
             List<Staff> staffList = new ArrayList<>();
+            staffByIdCache.clear();
+            staffByUserUidCache.clear();
+            staffByEmployeeIdCache.clear();
+
             for (var snapshot : documents) {
-                staffList.add(toStaff(snapshot));
+                Staff staff = toStaff(snapshot);
+                staffList.add(staff);
+                if (staff.getStaffId() != null) {
+                    staffByIdCache.put(staff.getStaffId(), staff);
+                }
+                if (staff.getUserUid() != null) {
+                    staffByUserUidCache.put(staff.getUserUid(), staff);
+                }
+                if (staff.getEmployeeId() != null) {
+                    staffByEmployeeIdCache.put(staff.getEmployeeId(), staff);
+                }
             }
-            return staffList;
+            allStaffCache = staffList;
+            cacheExpiryTime = now + CACHE_TTL_MS;
+            return new ArrayList<>(staffList);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Unable to find all staff", exception);
@@ -147,6 +218,7 @@ public class StaffRepository {
 
         try {
             document.update(updates).get();
+            clearCache();
             return findById(staffId)
                     .orElseThrow(() -> new IllegalArgumentException("Staff member not found"));
         } catch (InterruptedException exception) {
@@ -167,6 +239,7 @@ public class StaffRepository {
 
         try {
             document.update(updates).get();
+            clearCache();
             return findById(staffId)
                     .orElseThrow(() -> new IllegalArgumentException("Staff member not found"));
         } catch (InterruptedException exception) {
@@ -183,6 +256,7 @@ public class StaffRepository {
 
         try {
             document.delete().get();
+            clearCache();
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Unable to delete staff", exception);

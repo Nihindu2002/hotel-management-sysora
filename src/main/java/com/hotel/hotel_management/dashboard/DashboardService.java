@@ -27,6 +27,7 @@ import java.time.LocalDate;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 public class DashboardService {
@@ -55,20 +56,35 @@ public class DashboardService {
     }
 
     public DashboardSummary getDashboardSummary(LocalDate startDate, LocalDate endDate) {
-        RoomStatistics roomStats = getRoomStatistics();
-        ReservationStatistics reservationStats = getReservationStatistics();
-        FinanceStatistics financeStats = getFinanceStatistics(startDate, endDate);
-        InventoryStatistics inventoryStats = getInventoryStatistics();
-        HousekeepingStatistics housekeepingStats = getHousekeepingStatistics();
-        MaintenanceStatistics maintenanceStats = getMaintenanceStatistics();
+        CompletableFuture<RoomStatistics> roomStatsFuture =
+                CompletableFuture.supplyAsync(this::getRoomStatistics);
+        CompletableFuture<ReservationStatistics> reservationStatsFuture =
+                CompletableFuture.supplyAsync(this::getReservationStatistics);
+        CompletableFuture<FinanceStatistics> financeStatsFuture =
+                CompletableFuture.supplyAsync(() -> getFinanceStatistics(startDate, endDate));
+        CompletableFuture<InventoryStatistics> inventoryStatsFuture =
+                CompletableFuture.supplyAsync(this::getInventoryStatistics);
+        CompletableFuture<HousekeepingStatistics> housekeepingStatsFuture =
+                CompletableFuture.supplyAsync(this::getHousekeepingStatistics);
+        CompletableFuture<MaintenanceStatistics> maintenanceStatsFuture =
+                CompletableFuture.supplyAsync(this::getMaintenanceStatistics);
+
+        CompletableFuture.allOf(
+                roomStatsFuture,
+                reservationStatsFuture,
+                financeStatsFuture,
+                inventoryStatsFuture,
+                housekeepingStatsFuture,
+                maintenanceStatsFuture
+        ).join();
 
         return new DashboardSummary(
-                roomStats,
-                reservationStats,
-                financeStats,
-                inventoryStats,
-                housekeepingStats,
-                maintenanceStats
+                roomStatsFuture.join(),
+                reservationStatsFuture.join(),
+                financeStatsFuture.join(),
+                inventoryStatsFuture.join(),
+                housekeepingStatsFuture.join(),
+                maintenanceStatsFuture.join()
         );
     }
 

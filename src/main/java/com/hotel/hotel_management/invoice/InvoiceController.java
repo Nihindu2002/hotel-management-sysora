@@ -49,10 +49,56 @@ public class InvoiceController {
     })
     @GetMapping("/{invoiceId}")
     public ResponseEntity<Invoice> getInvoice(
-            @PathVariable String invoiceId) {
+            @PathVariable String invoiceId,
+            @Parameter(hidden = true) @AuthenticationPrincipal FirebaseToken token,
+            @Parameter(hidden = true) org.springframework.security.core.Authentication authentication) {
 
-        return ResponseEntity.ok(
-                invoiceService.getInvoiceById(invoiceId));
+        Invoice invoice = invoiceService.getInvoiceById(invoiceId);
+
+        boolean isCustomer = authentication != null &&
+                authentication.getAuthorities()
+                        .stream()
+                        .anyMatch(authority ->
+                                authority.getAuthority()
+                                        .equals("ROLE_CUSTOMER"));
+
+        if (isCustomer && token != null && !token.getUid().equals(invoice.getCustomerUid())) {
+            throw new com.hotel.hotel_management.common.ForbiddenException(
+                    "You are not authorized to view this invoice");
+        }
+
+        return ResponseEntity.ok(invoice);
+    }
+
+    @Operation(summary = "Get invoice by reservation ID", description = "Retrieves invoice associated with a reservation")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Invoice found"),
+            @ApiResponse(responseCode = "404", description = "Invoice not found")
+    })
+    @GetMapping("/reservation/{reservationId}")
+    public ResponseEntity<Invoice> getInvoiceByReservation(
+            @PathVariable String reservationId,
+            @Parameter(hidden = true) @AuthenticationPrincipal FirebaseToken token,
+            @Parameter(hidden = true) org.springframework.security.core.Authentication authentication) {
+
+        Invoice invoice = invoiceService.getInvoiceByReservationId(reservationId);
+        if (invoice == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        boolean isCustomer = authentication != null &&
+                authentication.getAuthorities()
+                        .stream()
+                        .anyMatch(authority ->
+                                authority.getAuthority()
+                                        .equals("ROLE_CUSTOMER"));
+
+        if (isCustomer && token != null && !token.getUid().equals(invoice.getCustomerUid())) {
+            throw new com.hotel.hotel_management.common.ForbiddenException(
+                    "You are not authorized to view this invoice");
+        }
+
+        return ResponseEntity.ok(invoice);
     }
 
     @Operation(summary = "Get my invoices", description = "Retrieves invoices for the authenticated customer")

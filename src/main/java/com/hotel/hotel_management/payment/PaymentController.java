@@ -96,6 +96,14 @@ public class PaymentController {
                         isCustomer ? token.getUid() : null));
     }
 
+    @Operation(summary = "Get my payments", description = "Retrieves payments made by the authenticated customer")
+    @GetMapping("/my")
+    public ResponseEntity<List<Payment>> getMyPayments(
+            @Parameter(hidden = true) @AuthenticationPrincipal FirebaseToken token) {
+        return ResponseEntity.ok(
+                paymentService.getCustomerPayments(token != null ? token.getUid() : null));
+    }
+
     @Operation(summary = "Get all payments", description = "Retrieves all payments across the hotel (Staff/Admin/Accountant)")
     @GetMapping
     public ResponseEntity<List<Payment>> getAllPayments() {

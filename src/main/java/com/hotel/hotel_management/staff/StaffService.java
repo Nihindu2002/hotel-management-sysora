@@ -6,14 +6,21 @@ import com.hotel.hotel_management.user.UserRepository;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class StaffService {
 
     private final StaffRepository staffRepository;
     private final UserRepository userRepository;
+    private volatile long lastSyncTimestamp = 0L;
+    private static final long SYNC_INTERVAL_MS = 60 * 1000L; // Sync at most once every 60 seconds
 
     public StaffService(StaffRepository staffRepository, UserRepository userRepository) {
         this.staffRepository = staffRepository;
@@ -118,15 +125,26 @@ public class StaffService {
 
     public Staff getStaffByUserUid(String userUid) {
         return staffRepository.findByUserUid(userUid)
-                .orElseThrow(() -> new IllegalArgumentException("Staff member not found for user"));
+                .orElseGet(() -> {
+                    User user = userRepository.findByUid(userUid)
+                            .orElseThrow(() -> new IllegalArgumentException("Staff member not found for user"));
+                    if (Role.CUSTOMER.name().equalsIgnoreCase(user.getRole())) {
+                        throw new IllegalArgumentException("Staff member not found for user");
+                    }
+                    Staff created = createDefaultStaffForUser(user);
+                    if (created == null) {
+                        throw new IllegalArgumentException("Staff member not found for user");
+                    }
+                    return created;
+                });
     }
 
     public List<Staff> getAllStaff() {
-        return staffRepository.findAll();
+        return syncStaffProfilesFromUsers();
     }
 
     public List<Staff> getStaff(StaffDepartment department, EmploymentStatus status) {
-        List<Staff> staffList = staffRepository.findAll();
+        List<Staff> staffList = syncStaffProfilesFromUsers();
 
         if (department != null) {
             staffList = staffList.stream()
@@ -141,6 +159,136 @@ public class StaffService {
         }
 
         return staffList;
+    }
+
+    public void invalidateSyncCache() {
+        lastSyncTimestamp = 0L;
+        staffRepository.clearCache();
+    }
+
+    private synchronized List<Staff> syncStaffProfilesFromUsers() {
+        long now = System.currentTimeMillis();
+        if (now - lastSyncTimestamp < SYNC_INTERVAL_MS) {
+            return staffRepository.findAll();
+        }
+        lastSyncTimestamp = now;
+
+        List<Staff> staffList;
+        try {
+            staffList = new ArrayList<>(staffRepository.findAll());
+        } catch (Exception e) {
+            staffList = new ArrayList<>();
+        }
+
+        try {
+            List<User> users = userRepository.findAll();
+            if (users == null || users.isEmpty()) {
+                return staffList;
+            }
+
+            Set<String> existingUserUids = staffList.stream()
+                    .map(Staff::getUserUid)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+
+            Set<String> existingEmployeeIds = staffList.stream()
+                    .map(Staff::getEmployeeId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toCollection(HashSet::new));
+
+            for (User user : users) {
+                if (user.getRole() != null && !Role.CUSTOMER.name().equalsIgnoreCase(user.getRole())) {
+                    if (!existingUserUids.contains(user.getUid())) {
+                        Staff created = createDefaultStaffForUser(user, existingEmployeeIds);
+                        if (created != null) {
+                            staffList.add(created);
+                            if (created.getUserUid() != null) {
+                                existingUserUids.add(created.getUserUid());
+                            }
+                            if (created.getEmployeeId() != null) {
+                                existingEmployeeIds.add(created.getEmployeeId());
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+            // Gracefully ignore if firestore query fails
+        }
+
+        return staffList;
+    }
+
+    private Staff createDefaultStaffForUser(User user) {
+        return createDefaultStaffForUser(user, null);
+    }
+
+    private Staff createDefaultStaffForUser(User user, Set<String> existingEmployeeIds) {
+        StaffDepartment dept = mapRoleToDepartment(user.getRole());
+        if (dept == null) return null;
+
+        Staff staff = new Staff();
+        staff.setStaffId(UUID.randomUUID().toString());
+        staff.setUserUid(user.getUid());
+
+        String shortUid = user.getUid() != null && user.getUid().length() >= 6
+                ? user.getUid().substring(0, 6).toUpperCase()
+                : UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+        String empId = "EMP-" + shortUid;
+
+        boolean idInUse = existingEmployeeIds != null
+                ? existingEmployeeIds.contains(empId)
+                : staffRepository.findByEmployeeId(empId).isPresent();
+
+        if (idInUse) {
+            empId = "EMP-" + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+        }
+
+        staff.setEmployeeId(empId);
+        staff.setDepartment(dept);
+        staff.setPosition(formatPosition(user.getRole()));
+        staff.setHireDate(java.time.LocalDate.now());
+        staff.setSalary(0.0);
+        staff.setEmploymentStatus(user.isEnabled() ? EmploymentStatus.ACTIVE : EmploymentStatus.INACTIVE);
+        staff.setEmergencyContact(user.getPhone());
+        staff.setCreatedAt(Instant.now());
+        staff.setUpdatedAt(Instant.now());
+
+        try {
+            Staff saved = staffRepository.save(staff);
+            if (existingEmployeeIds != null) {
+                existingEmployeeIds.add(empId);
+            }
+            return saved;
+        } catch (Exception e) {
+            return staff;
+        }
+    }
+
+    private StaffDepartment mapRoleToDepartment(String role) {
+        if (role == null) return null;
+        return switch (role.toUpperCase()) {
+            case "HOUSEKEEPING" -> StaffDepartment.HOUSEKEEPING;
+            case "MAINTENANCE" -> StaffDepartment.MAINTENANCE;
+            case "RECEPTIONIST" -> StaffDepartment.FRONT_OFFICE;
+            case "ACCOUNTANT" -> StaffDepartment.FINANCE;
+            case "MANAGER", "ADMIN" -> StaffDepartment.MANAGEMENT;
+            case "STAFF" -> StaffDepartment.OTHER;
+            default -> null;
+        };
+    }
+
+    private String formatPosition(String role) {
+        if (role == null) return "Staff Member";
+        return switch (role.toUpperCase()) {
+            case "HOUSEKEEPING" -> "Housekeeper";
+            case "MAINTENANCE" -> "Maintenance Technician";
+            case "RECEPTIONIST" -> "Receptionist";
+            case "ACCOUNTANT" -> "Accountant";
+            case "MANAGER" -> "Manager";
+            case "ADMIN" -> "Administrator";
+            default -> "Staff Member";
+        };
     }
 
     public void deleteStaff(String staffId) {

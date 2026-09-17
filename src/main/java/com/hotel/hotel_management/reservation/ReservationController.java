@@ -138,24 +138,33 @@ public class ReservationController {
         );
     }
 
-    @Operation(summary = "Check room availability", description = "Checks if a room is available for specified date range")
+    @Operation(summary = "Check room availability or search available rooms", description = "Checks if a room is available or lists available rooms for specified date range")
     @GetMapping("/availability")
-    public Map<String, Object> checkRoomAvailability(
-            @RequestParam String roomId,
+    public Object checkRoomAvailability(
+            @RequestParam(required = false) String roomId,
             @RequestParam LocalDate checkInDate,
-            @RequestParam LocalDate checkOutDate) {
+            @RequestParam LocalDate checkOutDate,
+            @RequestParam(required = false) Integer numberOfGuests) {
 
-        boolean available = reservationService.isRoomAvailable(
-                roomId,
+        if (roomId != null && !roomId.isBlank()) {
+            boolean available = reservationService.isRoomAvailable(
+                    roomId,
+                    checkInDate,
+                    checkOutDate
+            );
+
+            return Map.of(
+                    "roomId", roomId,
+                    "checkInDate", checkInDate,
+                    "checkOutDate", checkOutDate,
+                    "available", available
+            );
+        }
+
+        return reservationService.getAvailableRooms(
                 checkInDate,
-                checkOutDate
-        );
-
-        return Map.of(
-                "roomId", roomId,
-                "checkInDate", checkInDate,
-                "checkOutDate", checkOutDate,
-                "available", available
+                checkOutDate,
+                numberOfGuests
         );
     }
 }

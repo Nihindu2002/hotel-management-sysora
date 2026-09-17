@@ -57,7 +57,19 @@ export const NAVIGATION_ITEMS: NavItem[] = [
     label: 'Rooms',
     path: '/rooms',
     icon: 'rooms',
-    allowedRoles: ['ADMIN', 'MANAGER', 'RECEPTIONIST', 'CUSTOMER'],
+    allowedRoles: ['RECEPTIONIST', 'CUSTOMER'],
+  },
+  {
+    label: 'Manage Rooms',
+    path: '/admin/rooms',
+    icon: 'rooms',
+    allowedRoles: ['ADMIN'],
+  },
+  {
+    label: 'Manage Rooms',
+    path: '/manager/rooms',
+    icon: 'rooms',
+    allowedRoles: ['MANAGER'],
   },
   {
     label: 'Reservations',
@@ -101,9 +113,9 @@ export const NAVIGATION_ITEMS: NavItem[] = [
   // ── Facilities & Operations ──
   {
     label: 'Housekeeping',
-    path: '/housekeeping-tasks',
+    path: '/housekeeping/tasks',
     icon: 'housekeeping',
-    allowedRoles: ['ADMIN', 'MANAGER', 'RECEPTIONIST', 'HOUSEKEEPING'],
+    allowedRoles: ['ADMIN', 'MANAGER', 'HOUSEKEEPING'],
   },
   {
     label: 'Maintenance',
@@ -119,12 +131,7 @@ export const NAVIGATION_ITEMS: NavItem[] = [
   },
 
   // ── Administration & Management ──
-  {
-    label: 'Staff',
-    path: '/staff-management',
-    icon: 'staff',
-    allowedRoles: ['ADMIN', 'MANAGER'],
-  },
+
   {
     label: 'Finance',
     path: '/finance',
@@ -139,7 +146,7 @@ export const NAVIGATION_ITEMS: NavItem[] = [
   },
   {
     label: 'Users',
-    path: '/users',
+    path: '/admin/users',
     icon: 'users',
     allowedRoles: ['ADMIN'],
   },

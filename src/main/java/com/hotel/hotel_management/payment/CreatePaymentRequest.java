@@ -9,6 +9,8 @@ public record CreatePaymentRequest(
         @NotBlank
         String invoiceId,
 
+        String reservationId,
+
         @NotNull
         @DecimalMin(value = "0.01")
         Double amount,
@@ -16,4 +18,7 @@ public record CreatePaymentRequest(
         @NotNull
         PaymentMethod paymentMethod
 ) {
+    public CreatePaymentRequest(String invoiceId, Double amount, PaymentMethod paymentMethod) {
+        this(invoiceId, null, amount, paymentMethod);
+    }
 }

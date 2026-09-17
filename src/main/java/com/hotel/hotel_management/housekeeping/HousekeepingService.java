@@ -83,9 +83,10 @@ public class HousekeepingService {
                     "Completed or cancelled tasks cannot be assigned");
         }
 
-        Staff staffProfile = staffRepository.findByUserUid(staffUid)
-                .orElseThrow(() ->
-                        new IllegalArgumentException("Staff profile not found"));
+        Staff staffProfile = resolveHousekeepingStaff(staffUid);
+        if (staffProfile == null) {
+            throw new IllegalArgumentException("Staff profile not found");
+        }
 
         if (staffProfile.getEmploymentStatus() != EmploymentStatus.ACTIVE) {
             throw new IllegalArgumentException("Staff member is not active");
@@ -115,9 +116,10 @@ public class HousekeepingService {
                     "You are not authorized to start this task");
         }
 
-        Staff staff = staffRepository.findByUserUid(staffUid)
-                .orElseThrow(() ->
-                        new ForbiddenException("Staff profile not found"));
+        Staff staff = resolveHousekeepingStaff(staffUid);
+        if (staff == null) {
+            throw new ForbiddenException("Staff profile not found");
+        }
 
         if (staff.getEmploymentStatus() != EmploymentStatus.ACTIVE) {
             throw new ForbiddenException("Staff member is not active");
@@ -143,9 +145,10 @@ public class HousekeepingService {
                     "You are not authorized to complete this task");
         }
 
-        Staff staff = staffRepository.findByUserUid(staffUid)
-                .orElseThrow(() ->
-                        new ForbiddenException("Staff profile not found"));
+        Staff staff = resolveHousekeepingStaff(staffUid);
+        if (staff == null) {
+            throw new ForbiddenException("Staff profile not found");
+        }
 
         if (staff.getEmploymentStatus() != EmploymentStatus.ACTIVE) {
             throw new ForbiddenException("Staff member is not active");
@@ -156,7 +159,14 @@ public class HousekeepingService {
                 HousekeepingTaskStatus.COMPLETED,
                 Instant.now());
 
-        if (task.getTaskType() == HousekeepingTaskType.CHECKOUT_CLEANING) {
+        List<HousekeepingTask> remainingActive = housekeepingRepository.findByRoomId(task.getRoomId()).stream()
+                .filter(t -> !t.getTaskId().equals(taskId))
+                .filter(t -> t.getStatus() == HousekeepingTaskStatus.PENDING
+                        || t.getStatus() == HousekeepingTaskStatus.ASSIGNED
+                        || t.getStatus() == HousekeepingTaskStatus.IN_PROGRESS)
+                .toList();
+
+        if (remainingActive.isEmpty()) {
             Room room = roomRepository.findById(task.getRoomId()).orElse(null);
             if (room != null && room.getStatus() == RoomStatus.CLEANING) {
                 roomRepository.updateStatus(room.getRoomId(), RoomStatus.AVAILABLE);
@@ -198,6 +208,38 @@ public class HousekeepingService {
 
     public List<HousekeepingTask> getMyTasks(String staffUid) {
         return housekeepingRepository.findByAssignedTo(staffUid);
+    }
+
+    private Staff resolveHousekeepingStaff(String staffUid) {
+        return staffRepository.findByUserUid(staffUid).orElseGet(() -> {
+            var userOpt = userRepository.findByUid(staffUid);
+            if (userOpt.isPresent()) {
+                var user = userOpt.get();
+                if ("HOUSEKEEPING".equalsIgnoreCase(user.getRole())) {
+                    Staff staff = new Staff();
+                    staff.setStaffId(UUID.randomUUID().toString());
+                    staff.setUserUid(user.getUid());
+                    String shortUid = user.getUid() != null && user.getUid().length() >= 6
+                            ? user.getUid().substring(0, 6).toUpperCase()
+                            : UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+                    staff.setEmployeeId("EMP-" + shortUid);
+                    staff.setDepartment(StaffDepartment.HOUSEKEEPING);
+                    staff.setPosition("Housekeeper");
+                    staff.setHireDate(java.time.LocalDate.now());
+                    staff.setSalary(0.0);
+                    staff.setEmploymentStatus(user.isEnabled() ? EmploymentStatus.ACTIVE : EmploymentStatus.INACTIVE);
+                    staff.setEmergencyContact(user.getPhone());
+                    staff.setCreatedAt(Instant.now());
+                    staff.setUpdatedAt(Instant.now());
+                    try {
+                        return staffRepository.save(staff);
+                    } catch (Exception e) {
+                        return staff;
+                    }
+                }
+            }
+            return null;
+        });
     }
 }
 

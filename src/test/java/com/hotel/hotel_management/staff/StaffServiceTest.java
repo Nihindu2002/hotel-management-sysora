@@ -281,5 +281,94 @@ class StaffServiceTest {
         );
         assertEquals("Staff member is not active", ex.getMessage());
     }
+
+    @Test
+    void getStaff_BulkSync_DoesNotPerformNPlusOneQueriesForExistingStaff() {
+        // Mock 3 users with staff roles
+        User u1 = new User();
+        u1.setUid("hk-user-1");
+        u1.setRole(Role.HOUSEKEEPING.name());
+
+        User u2 = new User();
+        u2.setUid("maint-user-1");
+        u2.setRole(Role.MAINTENANCE.name());
+
+        User u3 = new User();
+        u3.setUid("admin-user-1");
+        u3.setRole(Role.ADMIN.name());
+
+        when(userRepository.findAll()).thenReturn(List.of(u1, u2, u3));
+
+        // Staff profiles already exist for all 3 users
+        Staff s1 = new Staff();
+        s1.setUserUid("hk-user-1");
+        s1.setDepartment(StaffDepartment.HOUSEKEEPING);
+        s1.setEmploymentStatus(EmploymentStatus.ACTIVE);
+
+        Staff s2 = new Staff();
+        s2.setUserUid("maint-user-1");
+        s2.setDepartment(StaffDepartment.MAINTENANCE);
+        s2.setEmploymentStatus(EmploymentStatus.ACTIVE);
+
+        Staff s3 = new Staff();
+        s3.setUserUid("admin-user-1");
+        s3.setDepartment(StaffDepartment.MANAGEMENT);
+        s3.setEmploymentStatus(EmploymentStatus.ACTIVE);
+
+        when(staffRepository.findAll()).thenReturn(List.of(s1, s2, s3));
+
+        List<Staff> result = staffService.getStaff(StaffDepartment.HOUSEKEEPING, EmploymentStatus.ACTIVE);
+
+        assertEquals(1, result.size());
+        assertEquals("hk-user-1", result.get(0).getUserUid());
+
+        // Crucial performance verification: findByUserUid must NEVER be called in a loop for existing staff
+        verify(staffRepository, never()).findByUserUid(anyString());
+        verify(staffRepository, never()).save(any(Staff.class));
+    }
+
+    @Test
+    void getStaff_SyncCreatesDefaultStaffForMissingUser() {
+        User u1 = new User();
+        u1.setUid("new-hk-user");
+        u1.setRole(Role.HOUSEKEEPING.name());
+        u1.setEnabled(true);
+
+        when(userRepository.findAll()).thenReturn(List.of(u1));
+        when(staffRepository.findAll()).thenReturn(new java.util.ArrayList<>());
+        when(staffRepository.save(any(Staff.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        List<Staff> result = staffService.getStaff(StaffDepartment.HOUSEKEEPING, EmploymentStatus.ACTIVE);
+
+        assertEquals(1, result.size());
+        assertEquals("new-hk-user", result.get(0).getUserUid());
+        assertEquals(StaffDepartment.HOUSEKEEPING, result.get(0).getDepartment());
+        verify(staffRepository, times(1)).save(any(Staff.class));
+    }
+
+    @Test
+    void getStaff_Throttling_DoesNotQueryUserRepositoryOnRapidRequests() {
+        User u1 = new User();
+        u1.setUid("hk-user-1");
+        u1.setRole(Role.HOUSEKEEPING.name());
+
+        when(userRepository.findAll()).thenReturn(List.of(u1));
+
+        Staff s1 = new Staff();
+        s1.setUserUid("hk-user-1");
+        s1.setDepartment(StaffDepartment.HOUSEKEEPING);
+        s1.setEmploymentStatus(EmploymentStatus.ACTIVE);
+
+        when(staffRepository.findAll()).thenReturn(List.of(s1));
+
+        // First call triggers sync
+        staffService.getStaff(StaffDepartment.HOUSEKEEPING, EmploymentStatus.ACTIVE);
+        // Second immediate call within 60s cooldown window
+        staffService.getStaff(StaffDepartment.HOUSEKEEPING, EmploymentStatus.ACTIVE);
+        staffService.getStaff(StaffDepartment.HOUSEKEEPING, EmploymentStatus.ACTIVE);
+
+        // userRepository.findAll() should only be called once due to throttling
+        verify(userRepository, times(1)).findAll();
+    }
 }
 

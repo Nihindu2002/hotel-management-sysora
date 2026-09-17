@@ -9,9 +9,12 @@ import com.hotel.hotel_management.housekeeping.HousekeepingTask;
 import com.hotel.hotel_management.housekeeping.HousekeepingTaskPriority;
 import com.hotel.hotel_management.housekeeping.HousekeepingTaskStatus;
 import com.hotel.hotel_management.housekeeping.HousekeepingTaskType;
+import com.hotel.hotel_management.invoice.InvoiceService;
 import com.hotel.hotel_management.room.Room;
 import com.hotel.hotel_management.room.RoomRepository;
 import com.hotel.hotel_management.room.RoomStatus;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -24,28 +27,51 @@ public class ReservationService {
     private final ReservationRepository reservationRepository;
     private final RoomRepository roomRepository;
     private final HousekeepingService housekeepingService;
+    private final InvoiceService invoiceService;
+
+    @Autowired
+    public ReservationService(
+            ReservationRepository reservationRepository,
+            RoomRepository roomRepository,
+            HousekeepingService housekeepingService,
+            @Lazy InvoiceService invoiceService) {
+
+        this.reservationRepository = reservationRepository;
+        this.roomRepository = roomRepository;
+        this.housekeepingService = housekeepingService;
+        this.invoiceService = invoiceService;
+    }
 
     public ReservationService(
             ReservationRepository reservationRepository,
             RoomRepository roomRepository,
             HousekeepingService housekeepingService) {
 
-        this.reservationRepository = reservationRepository;
-        this.roomRepository = roomRepository;
-        this.housekeepingService = housekeepingService;
+        this(reservationRepository, roomRepository, housekeepingService, null);
     }
 
     public Reservation createReservation(
             String customerUid,
             CreateReservationRequest request) {
 
-        if (request.checkOutDate()
-                .isBefore(request.checkInDate())
-                || request.checkOutDate()
-                .isEqual(request.checkInDate())) {
+        if (request.checkInDate() == null || request.checkOutDate() == null) {
+            throw new IllegalArgumentException(
+                    "Check-in and check-out dates are required");
+        }
 
+        if (request.checkInDate().isBefore(LocalDate.now())) {
+            throw new IllegalArgumentException(
+                    "Check-in date cannot be in the past");
+        }
+
+        if (!request.checkOutDate().isAfter(request.checkInDate())) {
             throw new IllegalArgumentException(
                     "Check-out date must be after check-in date");
+        }
+
+        if (request.numberOfGuests() == null || request.numberOfGuests() < 1) {
+            throw new IllegalArgumentException(
+                    "Number of guests must be at least 1");
         }
 
         Room room = roomRepository.findById(request.roomId())
@@ -53,10 +79,16 @@ public class ReservationService {
                         new ResourceNotFoundException(
                                 "Room not found"));
 
-        if (room.getStatus() == RoomStatus.CLEANING
-                || room.getStatus() == RoomStatus.MAINTENANCE) {
+        if (room.getStatus() == RoomStatus.MAINTENANCE
+                || (room.getStatus() == RoomStatus.CLEANING && request.checkInDate().equals(LocalDate.now()))) {
             throw new ConflictException(
                     "Room is not available for reservation");
+        }
+
+        int maxCapacity = getMaxGuestsForRoom(room);
+        if (request.numberOfGuests() > maxCapacity) {
+            throw new IllegalArgumentException(
+                    "Room is not suitable for " + request.numberOfGuests() + " guests (max capacity: " + maxCapacity + ")");
         }
 
         if (!isRoomAvailable(
@@ -188,10 +220,7 @@ public class ReservationService {
                 .orElseThrow(() ->
                         new ResourceNotFoundException("Room not found"));
 
-        if (room.getStatus() == RoomStatus.OCCUPIED
-                || room.getStatus() == RoomStatus.CLEANING
-                || room.getStatus() == RoomStatus.MAINTENANCE
-                || room.getStatus() == RoomStatus.RESERVED) {
+        if (room.getStatus() == RoomStatus.MAINTENANCE) {
             throw new ConflictException(
                     "Room is not available for confirmation");
         }
@@ -224,9 +253,19 @@ public class ReservationService {
                 reservationId,
                 ReservationStatus.CONFIRMED);
 
-        roomRepository.updateStatus(
-                reservation.getRoomId(),
-                RoomStatus.RESERVED);
+        if (room.getStatus() != RoomStatus.CLEANING) {
+            roomRepository.updateStatus(
+                    reservation.getRoomId(),
+                    RoomStatus.RESERVED);
+        }
+
+        if (invoiceService != null) {
+            try {
+                invoiceService.createInvoice(reservationId);
+            } catch (IllegalArgumentException e) {
+                // If invoice already exists, do not fail confirmation
+            }
+        }
 
         return updatedReservation;
     }
@@ -247,9 +286,31 @@ public class ReservationService {
                 .orElseThrow(() ->
                         new ResourceNotFoundException("Room not found"));
 
-        if (room.getStatus() != RoomStatus.RESERVED) {
+        if (room.getStatus() == RoomStatus.CLEANING) {
+            throw new ConflictException(
+                    "Room is currently being cleaned and cannot be checked in until housekeeping is completed");
+        }
+
+        if (room.getStatus() == RoomStatus.MAINTENANCE) {
+            throw new ConflictException(
+                    "Room is under maintenance and cannot be checked in");
+        }
+
+        if (housekeepingService != null) {
+            List<HousekeepingTask> tasks = housekeepingService.getTasksByRoomId(reservation.getRoomId());
+            boolean hasActiveCleaning = tasks != null && tasks.stream()
+                    .anyMatch(task -> (task.getStatus() == HousekeepingTaskStatus.PENDING
+                            || task.getStatus() == HousekeepingTaskStatus.ASSIGNED
+                            || task.getStatus() == HousekeepingTaskStatus.IN_PROGRESS));
+            if (hasActiveCleaning) {
+                throw new ConflictException(
+                        "Room is currently being cleaned and cannot be checked in until housekeeping is completed");
+            }
+        }
+
+        if (room.getStatus() != RoomStatus.RESERVED && room.getStatus() != RoomStatus.AVAILABLE) {
             throw new IllegalArgumentException(
-                    "Room must be in RESERVED status to check in");
+                    "Room must be in RESERVED or AVAILABLE status to check in");
         }
 
         Reservation updatedReservation = reservationRepository.updateStatus(
@@ -283,22 +344,29 @@ public class ReservationService {
                 reservation.getRoomId(),
                 RoomStatus.CLEANING);
 
-        // Prevent duplicate checkout-cleaning tasks
+        // Prevent duplicate checkout-cleaning tasks or errors if an active housekeeping task already exists
         List<HousekeepingTask> existingTasks =
                 housekeepingService.getTasksByRoomId(reservation.getRoomId());
 
-        boolean hasActiveCheckoutCleaning = existingTasks.stream()
-                .anyMatch(task -> task.getTaskType() == HousekeepingTaskType.CHECKOUT_CLEANING
+        boolean hasActiveTask = existingTasks != null && existingTasks.stream()
+                .anyMatch(task -> (task.getTaskType() == HousekeepingTaskType.CHECKOUT_CLEANING
+                                || task.getStatus() == HousekeepingTaskStatus.PENDING
+                                || task.getStatus() == HousekeepingTaskStatus.ASSIGNED
+                                || task.getStatus() == HousekeepingTaskStatus.IN_PROGRESS)
                         && task.getStatus() != HousekeepingTaskStatus.COMPLETED
                         && task.getStatus() != HousekeepingTaskStatus.CANCELLED);
 
-        if (!hasActiveCheckoutCleaning) {
-            housekeepingService.createTask(
-                    new CreateHousekeepingTaskRequest(
-                            reservation.getRoomId(),
-                            HousekeepingTaskType.CHECKOUT_CLEANING,
-                            HousekeepingTaskPriority.HIGH,
-                            "Checkout cleaning for reservation " + reservationId));
+        if (!hasActiveTask) {
+            try {
+                housekeepingService.createTask(
+                        new CreateHousekeepingTaskRequest(
+                                reservation.getRoomId(),
+                                HousekeepingTaskType.CHECKOUT_CLEANING,
+                                HousekeepingTaskPriority.HIGH,
+                                "Checkout cleaning for reservation " + reservationId));
+            } catch (IllegalArgumentException e) {
+                // If task already exists, do not fail check-out
+            }
         }
 
         return updatedReservation;
@@ -329,10 +397,9 @@ public class ReservationService {
                         new IllegalArgumentException(
                                 "Room not found"));
 
-        if (room.getStatus() == RoomStatus.RESERVED
+        if (room.getStatus() == RoomStatus.MAINTENANCE
                 || room.getStatus() == RoomStatus.OCCUPIED
-                || room.getStatus() == RoomStatus.CLEANING
-                || room.getStatus() == RoomStatus.MAINTENANCE) {
+                || (room.getStatus() == RoomStatus.CLEANING && checkInDate.equals(LocalDate.now()))) {
             return false;
         }
 
@@ -342,7 +409,8 @@ public class ReservationService {
         for (Reservation existing : reservations) {
 
             if (existing.getStatus() != ReservationStatus.CONFIRMED
-                    && existing.getStatus() != ReservationStatus.CHECKED_IN) {
+                    && existing.getStatus() != ReservationStatus.CHECKED_IN
+                    && existing.getStatus() != ReservationStatus.PENDING) {
                 continue;
             }
 
@@ -356,6 +424,83 @@ public class ReservationService {
         }
 
         return true;
+    }
+
+    public List<Room> getAvailableRooms(
+            LocalDate checkInDate,
+            LocalDate checkOutDate,
+            Integer numberOfGuests) {
+
+        if (checkInDate == null || checkOutDate == null) {
+            throw new IllegalArgumentException(
+                    "Check-in and check-out dates are required");
+        }
+
+        if (!checkOutDate.isAfter(checkInDate)) {
+            throw new IllegalArgumentException(
+                    "Check-out date must be after check-in date");
+        }
+
+        if (checkInDate.isBefore(LocalDate.now())) {
+            throw new IllegalArgumentException(
+                    "Check-in date cannot be in the past");
+        }
+
+        List<Room> allRooms = roomRepository.findAll();
+        if (allRooms == null || allRooms.isEmpty()) {
+            return List.of();
+        }
+
+        List<Reservation> allReservations = reservationRepository.findAll();
+        java.util.Map<String, List<Reservation>> reservationsByRoom =
+                (allReservations != null ? allReservations : List.<Reservation>of()).stream()
+                        .filter(r -> r.getStatus() == ReservationStatus.CONFIRMED
+                                || r.getStatus() == ReservationStatus.CHECKED_IN
+                                || r.getStatus() == ReservationStatus.PENDING)
+                        .filter(r -> r.getRoomId() != null)
+                        .collect(java.util.stream.Collectors.groupingBy(Reservation::getRoomId));
+
+        return allRooms.stream()
+                .filter(room -> isRoomAvailableInMemory(room, checkInDate, checkOutDate, reservationsByRoom.getOrDefault(room.getRoomId(), List.of())))
+                .filter(room -> numberOfGuests == null || numberOfGuests <= getMaxGuestsForRoom(room))
+                .toList();
+    }
+
+    private boolean isRoomAvailableInMemory(
+            Room room,
+            LocalDate checkInDate,
+            LocalDate checkOutDate,
+            List<Reservation> activeReservations) {
+
+        if (room.getStatus() == RoomStatus.MAINTENANCE
+                || room.getStatus() == RoomStatus.OCCUPIED
+                || (room.getStatus() == RoomStatus.CLEANING && checkInDate.equals(LocalDate.now()))) {
+            return false;
+        }
+
+        for (Reservation existing : activeReservations) {
+            boolean overlaps =
+                    checkInDate.isBefore(existing.getCheckOutDate())
+                    && checkOutDate.isAfter(existing.getCheckInDate());
+
+            if (overlaps) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    public static int getMaxGuestsForRoom(Room room) {
+        if (room == null || room.getRoomType() == null) {
+            return 4;
+        }
+        return switch (room.getRoomType()) {
+            case STANDARD -> 2;
+            case DELUXE -> 3;
+            case SUITE -> 4;
+            case FAMILY -> 6;
+        };
     }
 
     private void updateRoomStatusAfterCancellation(

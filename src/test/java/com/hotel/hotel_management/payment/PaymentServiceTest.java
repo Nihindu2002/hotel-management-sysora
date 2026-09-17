@@ -16,11 +16,16 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
+import com.hotel.hotel_management.reservation.Reservation;
+import com.hotel.hotel_management.reservation.ReservationRepository;
+import com.hotel.hotel_management.reservation.ReservationStatus;
+
 class PaymentServiceTest {
 
     private PaymentRepository paymentRepository;
     private InvoiceRepository invoiceRepository;
     private FinanceService financeService;
+    private ReservationRepository reservationRepository;
     private PaymentService paymentService;
 
     @BeforeEach
@@ -28,7 +33,8 @@ class PaymentServiceTest {
         paymentRepository = mock(PaymentRepository.class);
         invoiceRepository = mock(InvoiceRepository.class);
         financeService = mock(FinanceService.class);
-        paymentService = new PaymentService(paymentRepository, invoiceRepository, financeService);
+        reservationRepository = mock(ReservationRepository.class);
+        paymentService = new PaymentService(paymentRepository, invoiceRepository, financeService, reservationRepository);
     }
 
     @Test
@@ -90,6 +96,41 @@ class PaymentServiceTest {
     }
 
     @Test
+    void createPayment_Success_ConfirmedReservationFlow() {
+        Invoice invoice = new Invoice();
+        invoice.setInvoiceId("inv-conf");
+        invoice.setCustomerUid("cust-flow");
+        invoice.setReservationId("res-conf");
+        invoice.setTotalAmount(500.0);
+        invoice.setStatus(InvoiceStatus.UNPAID.name());
+
+        Reservation confirmedRes = new Reservation();
+        confirmedRes.setReservationId("res-conf");
+        confirmedRes.setStatus(ReservationStatus.CONFIRMED);
+
+        when(invoiceRepository.findById("inv-conf")).thenReturn(Optional.of(invoice));
+        when(reservationRepository.findById("res-conf")).thenReturn(Optional.of(confirmedRes));
+        when(paymentRepository.getTotalPaidForInvoice("inv-conf"))
+                .thenReturn(0.0)
+                .thenReturn(500.0);
+        when(paymentRepository.save(any(Payment.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CreatePaymentRequest request = new CreatePaymentRequest("inv-conf", 500.0, PaymentMethod.ONLINE);
+
+        Payment payment = paymentService.createPayment(request, "cust-flow", "cust-flow");
+
+        assertNotNull(payment);
+        assertEquals("COMPLETED", payment.getStatus());
+        assertEquals(500.0, payment.getAmount());
+        assertEquals("inv-conf", payment.getInvoiceId());
+        assertEquals("ONLINE", payment.getPaymentMethod());
+
+        verify(invoiceRepository).updateStatus("inv-conf", InvoiceStatus.PAID);
+        verify(financeService).recordPaymentIncome(payment, "cust-flow");
+    }
+
+    @Test
     void createPayment_FailsIfInvoiceAlreadyPaid() {
         Invoice invoice = new Invoice();
         invoice.setInvoiceId("inv-paid");
@@ -145,6 +186,56 @@ class PaymentServiceTest {
                 () -> paymentService.createPayment(request, "other-customer", "other-customer")
         );
         assertEquals("You are not authorized to pay this invoice", ex.getMessage());
+    }
+
+    @Test
+    void createPayment_FailsIfReservationIsPending() {
+        Invoice invoice = new Invoice();
+        invoice.setInvoiceId("inv-pending");
+        invoice.setCustomerUid("cust-1");
+        invoice.setReservationId("res-pending");
+        invoice.setTotalAmount(5000.0);
+        invoice.setStatus(InvoiceStatus.UNPAID.name());
+
+        Reservation res = new Reservation();
+        res.setReservationId("res-pending");
+        res.setStatus(ReservationStatus.PENDING);
+
+        when(invoiceRepository.findById("inv-pending")).thenReturn(Optional.of(invoice));
+        when(reservationRepository.findById("res-pending")).thenReturn(Optional.of(res));
+
+        CreatePaymentRequest request = new CreatePaymentRequest("inv-pending", 1000.0, PaymentMethod.CARD);
+
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> paymentService.createPayment(request, "cust-1", "cust-1")
+        );
+        assertEquals("Cannot make payment for a pending reservation. It must be confirmed by staff first.", ex.getMessage());
+    }
+
+    @Test
+    void createPayment_FailsIfReservationIsCancelled() {
+        Invoice invoice = new Invoice();
+        invoice.setInvoiceId("inv-cancelled");
+        invoice.setCustomerUid("cust-1");
+        invoice.setReservationId("res-cancelled");
+        invoice.setTotalAmount(5000.0);
+        invoice.setStatus(InvoiceStatus.UNPAID.name());
+
+        Reservation res = new Reservation();
+        res.setReservationId("res-cancelled");
+        res.setStatus(ReservationStatus.CANCELLED);
+
+        when(invoiceRepository.findById("inv-cancelled")).thenReturn(Optional.of(invoice));
+        when(reservationRepository.findById("res-cancelled")).thenReturn(Optional.of(res));
+
+        CreatePaymentRequest request = new CreatePaymentRequest("inv-cancelled", 1000.0, PaymentMethod.CARD);
+
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> paymentService.createPayment(request, "cust-1", "cust-1")
+        );
+        assertEquals("Cannot make payment for a cancelled reservation.", ex.getMessage());
     }
 
     @Test

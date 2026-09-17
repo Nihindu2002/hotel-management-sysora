@@ -13,6 +13,8 @@ public class Invoice {
     private Double additionalCharges;
     private Double discount;
     private Double totalAmount;
+    private Double paidAmount;
+    private Double remainingAmount;
 
     private String status;
 
@@ -105,5 +107,21 @@ public class Invoice {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public Double getPaidAmount() {
+        return paidAmount;
+    }
+
+    public void setPaidAmount(Double paidAmount) {
+        this.paidAmount = paidAmount;
+    }
+
+    public Double getRemainingAmount() {
+        return remainingAmount;
+    }
+
+    public void setRemainingAmount(Double remainingAmount) {
+        this.remainingAmount = remainingAmount;
     }
 }
