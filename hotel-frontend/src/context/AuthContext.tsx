@@ -14,7 +14,7 @@ import {
 } from 'firebase/auth';
 
 import { auth } from '../lib/firebase';
-import { getCurrentUserProfile } from '../services/userService';
+import { getCurrentUser } from '../services/userService';
 import type { UserProfile } from '../types/user';
 import type { RegisterRequest } from '../types/auth';
 import * as authService from '../services/authService';
@@ -29,6 +29,8 @@ export interface AuthContextType {
     (data: RegisterRequest): Promise<void>;
   };
   logout: () => Promise<void>;
+  /** Re-reads the profile from the API, e.g. after the user edits it. */
+  refreshProfile: () => Promise<UserProfile>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -44,7 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setFirebaseUser(currentUser);
 
         if (currentUser) {
-          const profile = await getCurrentUserProfile();
+          const profile = await getCurrentUser();
           setUser(profile);
         } else {
           setUser(null);
@@ -64,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     await signInWithEmailAndPassword(auth, email, password);
     try {
-      const profile = await getCurrentUserProfile();
+      const profile = await getCurrentUser();
       setUser(profile);
       return profile;
     } catch (error) {
@@ -92,6 +94,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setFirebaseUser(null);
   };
 
+  const refreshProfile = async (): Promise<UserProfile> => {
+    const profile = await getCurrentUser();
+    setUser(profile);
+    return profile;
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -101,6 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         register: register as AuthContextType['register'],
         logout,
+        refreshProfile,
       }}
     >
       {children}

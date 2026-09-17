@@ -54,7 +54,36 @@ export const registerUserByAdmin = async (
   return getUserByUid(uid);
 };
 
-export const getCurrentUserProfile = async (): Promise<UserProfile> => {
+/**
+ * Retrieves the signed-in user's own profile.
+ * Uses: GET /api/users/me (any authenticated role)
+ */
+export const getCurrentUser = async (): Promise<UserProfile> => {
   const response = await api.get<UserProfile>('/users/me');
+  return response.data;
+};
+
+/**
+ * Fields a user may change about themselves. There is deliberately no `email`
+ * or `role` here: the backend's UpdateUserRequest does not carry them either,
+ * so neither can be altered through this path.
+ */
+export interface UpdateProfileRequest {
+  firstName: string;
+  lastName: string;
+  phone?: string;
+}
+
+/**
+ * Updates the signed-in user's own profile.
+ * Uses: PUT /api/users/me
+ *
+ * The backend resolves the target account from the Firebase token, so this can
+ * only ever modify the caller's own record.
+ */
+export const updateProfile = async (
+  data: UpdateProfileRequest
+): Promise<UserProfile> => {
+  const response = await api.put<UserProfile>('/users/me', data);
   return response.data;
 };

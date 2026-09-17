@@ -1,10 +1,12 @@
 import type { RegisterOptions } from 'react-hook-form';
 
 // ── Regex patterns ──
+// Exported so the profile schemas validate against exactly the same rules
+// rather than a second, drifting copy.
 
-const NAME_PATTERN = /^[A-Za-z][A-Za-z\s'-]{1,49}$/;
-const SRI_LANKAN_PHONE_PATTERN = /^(?:\+94|0)7[0-9]{8}$/;
-const PASSWORD_PATTERN =
+export const NAME_PATTERN = /^[A-Za-z][A-Za-z\s'-]{1,49}$/;
+export const SRI_LANKAN_PHONE_PATTERN = /^(?:\+94|0)7[0-9]{8}$/;
+export const PASSWORD_PATTERN =
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
 
 // ── Registration form shape ──

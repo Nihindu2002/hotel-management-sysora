@@ -1,5 +1,6 @@
 import api from './api';
 import type {
+  HousekeepingDashboard,
   HousekeepingTask,
   CreateHousekeepingTaskRequest,
 } from '../types/housekeeping';
@@ -7,6 +8,15 @@ import type { Staff } from '../types/staff';
 
 export const getAllTasks = async (): Promise<HousekeepingTask[]> => {
   const response = await api.get<HousekeepingTask[]>('/housekeeping/tasks');
+  return response.data;
+};
+
+/**
+ * Dashboard counts, including completed-today and rooms awaiting cleaning.
+ * Uses: GET /api/housekeeping/dashboard
+ */
+export const getDashboard = async (): Promise<HousekeepingDashboard> => {
+  const response = await api.get<HousekeepingDashboard>('/housekeeping/dashboard');
   return response.data;
 };
 

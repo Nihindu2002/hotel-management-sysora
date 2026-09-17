@@ -18,6 +18,11 @@ import InventoryDashboardPage from './pages/inventory/InventoryDashboardPage';
 import InventoryItems from './pages/inventory/InventoryItems';
 import InventoryItemDetails from './pages/inventory/InventoryItemDetails';
 import AccountantDashboard from './pages/accountant/AccountantDashboard';
+import ManagementDashboard from './pages/dashboard/ManagementDashboard';
+import ReportsOverview from './pages/reports/ReportsOverview';
+import RevenueReport from './pages/reports/RevenueReport';
+import OccupancyReport from './pages/reports/OccupancyReport';
+import ExpenseReport from './pages/reports/ExpenseReport';
 import FinanceDashboard from './pages/finance/FinanceDashboard';
 import FinanceTransactions from './pages/finance/FinanceTransactions';
 import FinanceTransactionDetails from './pages/finance/FinanceTransactionDetails';
@@ -43,6 +48,8 @@ import CustomerInvoices from "./pages/customer/CustomerInvoices";
 import CustomerInvoiceDetails from "./pages/customer/CustomerInvoiceDetails";
 import CustomerPaymentNew from "./pages/customer/CustomerPaymentNew";
 import CustomerPayments from "./pages/customer/CustomerPayments";
+import CustomerProfile from "./pages/customer/CustomerProfile";
+import CustomerAccount from "./pages/customer/CustomerAccount";
 
 // Staff & reservation management
 import StaffReservations from "./pages/staff/StaffReservations";
@@ -61,6 +68,11 @@ function App() {
         <Route path="/unauthorized" element={<Unauthorized />} />
 
         <Route element={<DashboardLayout />}>
+          {/* Management dashboard — ADMIN and MANAGER share it */}
+          <Route element={<RoleRoute allowedRoles={['ADMIN', 'MANAGER']} />}>
+            <Route path="/dashboard" element={<ManagementDashboard />} />
+          </Route>
+
           {/* Role Primary Dashboards */}
           <Route element={<RoleRoute allowedRoles={['ADMIN']} />}>
             <Route path="/admin" element={<AdminDashboard />} />
@@ -134,7 +146,9 @@ function App() {
             <Route path="/customer/payments" element={<CustomerPayments />} />
             <Route path="/customer/payments/new" element={<CustomerPaymentNew />} />
             <Route path="/my-payments" element={<CustomerPayments />} />
-            <Route path="/profile" element={<PlaceholderPage title="My Profile" />} />
+            <Route path="/customer/profile" element={<CustomerProfile />} />
+            <Route path="/customer/account" element={<CustomerAccount />} />
+            <Route path="/profile" element={<CustomerProfile />} />
           </Route>
 
           {/* Customer-visible rooms (read-only) */}
@@ -203,7 +217,15 @@ function App() {
               path="/finance/transactions/:transactionId"
               element={<FinanceTransactionDetails />}
             />
-            <Route path="/reports" element={<PlaceholderPage title="Reports" />} />
+          </Route>
+
+          {/* Reports — every endpoint they read is ADMIN/MANAGER only, so the
+              route guard matches rather than showing a page of 403s. */}
+          <Route element={<RoleRoute allowedRoles={['ADMIN', 'MANAGER']} />}>
+            <Route path="/reports" element={<ReportsOverview />} />
+            <Route path="/reports/revenue" element={<RevenueReport />} />
+            <Route path="/reports/occupancy" element={<OccupancyReport />} />
+            <Route path="/reports/expenses" element={<ExpenseReport />} />
           </Route>
         </Route>
 

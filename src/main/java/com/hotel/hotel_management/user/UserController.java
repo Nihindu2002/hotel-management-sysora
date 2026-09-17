@@ -1,9 +1,13 @@
 package com.hotel.hotel_management.user;
 
+import com.google.firebase.auth.FirebaseToken;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,20 +27,26 @@ public class UserController {
     @Operation(summary = "Get current user profile",
             description = "Returns the authenticated user's own profile")
     @GetMapping("/me")
-    public User getCurrentUser(
-            org.springframework.security.core.Authentication authentication) {
-        if (authentication == null) {
-            throw new org.springframework.security.authentication.BadCredentialsException("Not authenticated");
-        }
-        String uid;
-        if (authentication.getPrincipal() instanceof com.google.firebase.auth.FirebaseToken token) {
-            uid = token.getUid();
-        } else if (authentication.getDetails() instanceof User profile) {
-            uid = profile.getUid();
-        } else {
-            throw new org.springframework.security.authentication.BadCredentialsException("Invalid authentication principal");
-        }
-        return userService.getUserByUid(uid);
+    public User getCurrentUser(Authentication authentication) {
+        return userService.getUserByUid(resolveUid(authentication));
+    }
+
+    @Operation(summary = "Update own profile",
+            description = "Updates the authenticated user's own first name, last name, and phone. "
+                    + "Email and role are not part of the payload and cannot be changed here.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Profile updated successfully"),
+            @ApiResponse(responseCode = "400", description = "Validation error"),
+            @ApiResponse(responseCode = "404", description = "User not found")
+    })
+    @PutMapping("/me")
+    public User updateCurrentUser(
+            Authentication authentication,
+            @Valid @RequestBody UpdateUserRequest request) {
+
+        // The uid is resolved from the token rather than the path or body, so a
+        // caller can only ever edit their own record.
+        return userService.updateUser(resolveUid(authentication), request);
     }
 
     @Operation(summary = "Get all users", description = "Retrieves a list of all registered users (Admin only)")
@@ -64,7 +74,7 @@ public class UserController {
     @PutMapping("/{uid}")
     public User updateUser(
             @PathVariable String uid,
-            @jakarta.validation.Valid @RequestBody UpdateUserRequest request) {
+            @Valid @RequestBody UpdateUserRequest request) {
 
         return userService.updateUser(uid, request);
     }
@@ -80,5 +90,25 @@ public class UserController {
             @RequestParam Role role) {
 
         return userService.updateRole(uid, role);
+    }
+
+    /**
+     * Resolves the caller's Firebase UID from the authenticated principal. The
+     * self-service /me endpoints use this so the uid never comes from input.
+     */
+    private String resolveUid(Authentication authentication) {
+        if (authentication == null) {
+            throw new BadCredentialsException("Not authenticated");
+        }
+
+        if (authentication.getPrincipal() instanceof FirebaseToken token) {
+            return token.getUid();
+        }
+
+        if (authentication.getDetails() instanceof User profile) {
+            return profile.getUid();
+        }
+
+        throw new BadCredentialsException("Invalid authentication principal");
     }
 }

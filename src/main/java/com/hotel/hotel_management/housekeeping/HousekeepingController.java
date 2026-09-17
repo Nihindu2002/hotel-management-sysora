@@ -43,6 +43,12 @@ public class HousekeepingController {
                 housekeepingService.getAllTasks());
     }
 
+    @Operation(summary = "Get housekeeping dashboard statistics", description = "Returns pending, assigned, in-progress, completed-today, cancelled, and rooms-needing-cleaning metrics")
+    @GetMapping("/dashboard")
+    public ResponseEntity<HousekeepingDashboardResponse> getDashboard() {
+        return ResponseEntity.ok(housekeepingService.getDashboard());
+    }
+
     @Operation(summary = "Get housekeeping task by ID", description = "Retrieves housekeeping task details by taskId")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Task found"),

@@ -12,6 +12,8 @@ import com.hotel.hotel_management.staff.StaffRepository;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 
@@ -200,6 +202,44 @@ public class HousekeepingService {
 
     public List<HousekeepingTask> getAllTasks() {
         return housekeepingRepository.findAll();
+    }
+
+    /**
+     * Aggregated figures for the housekeeping dashboard. Completing a task is
+     * what stamps {@code completedAt}, so only COMPLETED tasks can contribute to
+     * the daily figure.
+     */
+    public HousekeepingDashboardResponse getDashboard() {
+        List<HousekeepingTask> tasks = housekeepingRepository.findAll();
+        LocalDate today = LocalDate.now();
+
+        long total = tasks.size();
+        long pending = tasks.stream()
+                .filter(t -> t.getStatus() == HousekeepingTaskStatus.PENDING)
+                .count();
+        long assigned = tasks.stream()
+                .filter(t -> t.getStatus() == HousekeepingTaskStatus.ASSIGNED)
+                .count();
+        long inProgress = tasks.stream()
+                .filter(t -> t.getStatus() == HousekeepingTaskStatus.IN_PROGRESS)
+                .count();
+        long cancelled = tasks.stream()
+                .filter(t -> t.getStatus() == HousekeepingTaskStatus.CANCELLED)
+                .count();
+
+        long completedToday = tasks.stream()
+                .filter(t -> t.getStatus() == HousekeepingTaskStatus.COMPLETED)
+                .filter(t -> t.getCompletedAt() != null)
+                .filter(t -> today.equals(
+                        t.getCompletedAt().atZone(ZoneId.systemDefault()).toLocalDate()))
+                .count();
+
+        long roomsNeedingCleaning = roomRepository.findAll().stream()
+                .filter(room -> room.getStatus() == RoomStatus.CLEANING)
+                .count();
+
+        return new HousekeepingDashboardResponse(
+                total, pending, assigned, inProgress, completedToday, cancelled, roomsNeedingCleaning);
     }
 
     public List<HousekeepingTask> getTasksByRoomId(String roomId) {

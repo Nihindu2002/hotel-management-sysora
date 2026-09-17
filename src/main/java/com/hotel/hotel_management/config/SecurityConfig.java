@@ -54,6 +54,13 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/users/me")
                         .authenticated()
 
+                        // Self-service profile edit. Declared before the
+                        // ADMIN-only PUT /api/users/* below, which would
+                        // otherwise match this path and lock customers out of
+                        // their own profile.
+                        .requestMatchers(HttpMethod.PUT, "/api/users/me")
+                        .authenticated()
+
                         .requestMatchers("/api/admin/**")
                         .hasRole("ADMIN")
 
@@ -92,6 +99,18 @@ public class SecurityConfig {
 
                         .requestMatchers("/api/manager/**")
                         .hasAnyRole("ADMIN", "MANAGER")
+
+                        // Narrower than the /api/dashboard/** catch-all below, so
+                        // these must be declared first (first match wins). Each
+                        // grants one extra role read access to that report only.
+                        .requestMatchers(HttpMethod.GET, "/api/dashboard/reservations/activity")
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST")
+
+                        .requestMatchers(HttpMethod.GET, "/api/dashboard/rooms/statistics")
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST")
+
+                        .requestMatchers(HttpMethod.GET, "/api/dashboard/invoices/outstanding")
+                        .hasAnyRole("ADMIN", "MANAGER", "ACCOUNTANT")
 
                         .requestMatchers("/api/dashboard", "/api/dashboard/**")
                         .hasAnyRole("ADMIN", "MANAGER")
@@ -147,6 +166,15 @@ public class SecurityConfig {
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/housekeeping/test"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER", "HOUSEKEEPING")
+
+                        // Explicitly scoped: without a rule this path would fall
+                        // through to anyRequest().authenticated() and expose the
+                        // housekeeping work queue to every signed-in user.
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/housekeeping/dashboard"
                         )
                         .hasAnyRole("ADMIN", "MANAGER", "HOUSEKEEPING")
 

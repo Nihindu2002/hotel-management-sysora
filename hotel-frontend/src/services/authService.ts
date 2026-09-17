@@ -1,6 +1,9 @@
 import {
+  EmailAuthProvider,
+  reauthenticateWithCredential,
   signInWithEmailAndPassword,
   signOut,
+  updatePassword,
   type User as FirebaseUser,
 } from 'firebase/auth';
 import { auth } from '../lib/firebase';
@@ -54,5 +57,30 @@ export async function getCurrentToken(): Promise<string | null> {
   const user = auth.currentUser;
   if (!user) return null;
   return user.getIdToken();
+}
+
+/**
+ * Change the signed-in user's password.
+ *
+ * Runs entirely against Firebase Authentication — the Spring backend never sees
+ * the password. Firebase requires a recent login for this operation, so the
+ * current password is used to reauthenticate first, which both proves the
+ * caller knows it and refreshes that window.
+ *
+ * Throws Firebase errors; callers should map `error.code` to a readable message.
+ */
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  const user = auth.currentUser;
+
+  if (!user || !user.email) {
+    throw new Error('You must be signed in to change your password.');
+  }
+
+  const credential = EmailAuthProvider.credential(user.email, currentPassword);
+  await reauthenticateWithCredential(user, credential);
+  await updatePassword(user, newPassword);
 }
 

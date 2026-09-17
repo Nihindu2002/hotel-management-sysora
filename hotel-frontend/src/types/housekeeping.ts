@@ -42,3 +42,18 @@ export interface AssignHousekeepingTaskRequest {
   staffUid: string;
 }
 
+/**
+ * Aggregated figures for the housekeeping dashboard, computed server-side.
+ * `completedToday` counts tasks finished since midnight; `roomsNeedingCleaning`
+ * is the number of rooms currently in the CLEANING state.
+ */
+export interface HousekeepingDashboard {
+  totalTasks: number;
+  pendingTasks: number;
+  assignedTasks: number;
+  inProgressTasks: number;
+  completedToday: number;
+  cancelledTasks: number;
+  roomsNeedingCleaning: number;
+}
+

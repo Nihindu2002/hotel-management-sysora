@@ -2,13 +2,18 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
+  getDashboard,
   getAllTasks,
   getMyTasks,
   startHousekeepingTask,
   completeHousekeepingTask,
 } from '../../services/housekeepingService';
 import { getRooms } from '../../services/roomService';
-import type { HousekeepingTask, HousekeepingTaskStatus } from '../../types/housekeeping';
+import type {
+  HousekeepingDashboard,
+  HousekeepingTask,
+  HousekeepingTaskStatus,
+} from '../../types/housekeeping';
 import type { Room } from '../../types/room';
 
 const STATUS_BADGE: Record<HousekeepingTaskStatus, { label: string; cls: string; dot: string }> = {
@@ -42,6 +47,7 @@ export default function HousekeepingDashboard() {
   const [allTasks, setAllTasks] = useState<HousekeepingTask[]>([]);
   const [myTasks, setMyTasks] = useState<HousekeepingTask[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [dashboardStats, setDashboardStats] = useState<HousekeepingDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
@@ -49,13 +55,15 @@ export default function HousekeepingDashboard() {
 
   const loadData = useCallback(async () => {
     try {
-      const [tasksData, roomsData] = await Promise.all([
+      const [tasksData, roomsData, statsData] = await Promise.all([
         getAllTasks().catch(() => []),
         getRooms().catch(() => []),
+        getDashboard().catch(() => null),
       ]);
 
       setAllTasks(tasksData);
       setRooms(roomsData);
+      setDashboardStats(statsData);
 
       if (isStaff) {
         const myTasksData = await getMyTasks().catch(() => []);
@@ -93,13 +101,10 @@ export default function HousekeepingDashboard() {
     [allTasks]
   );
 
-  const completedTodayCount = useMemo(() => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    return allTasks.filter((t) => {
-      if (t.status !== 'COMPLETED' || !t.completedAt) return false;
-      return t.completedAt.startsWith(todayStr);
-    }).length;
-  }, [allTasks]);
+  // Counted by the backend, which compares completedAt against the server's
+  // local day. The previous client-side check used toISOString(), i.e. UTC, so
+  // before 05:30 in UTC+5:30 it counted against yesterday and reported zero.
+  const completedTodayCount = dashboardStats?.completedToday ?? 0;
 
   const urgentCount = useMemo(
     () =>

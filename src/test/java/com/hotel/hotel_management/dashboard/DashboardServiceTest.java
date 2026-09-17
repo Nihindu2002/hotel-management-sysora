@@ -1,6 +1,7 @@
 package com.hotel.hotel_management.dashboard;
 
 import com.hotel.hotel_management.finance.FinanceCategory;
+import com.hotel.hotel_management.finance.FinanceReferenceType;
 import com.hotel.hotel_management.finance.FinanceService;
 import com.hotel.hotel_management.finance.FinanceStatus;
 import com.hotel.hotel_management.finance.FinanceSummaryResponse;
@@ -12,6 +13,8 @@ import com.hotel.hotel_management.housekeeping.HousekeepingTaskStatus;
 import com.hotel.hotel_management.inventory.InventoryItem;
 import com.hotel.hotel_management.inventory.InventoryRepository;
 import com.hotel.hotel_management.inventory.InventoryStatus;
+import com.hotel.hotel_management.invoice.Invoice;
+import com.hotel.hotel_management.invoice.InvoiceRepository;
 import com.hotel.hotel_management.maintenance.MaintenanceRepository;
 import com.hotel.hotel_management.maintenance.MaintenanceStatus;
 import com.hotel.hotel_management.maintenance.MaintenanceTask;
@@ -24,11 +27,14 @@ import com.hotel.hotel_management.room.RoomStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -40,6 +46,7 @@ class DashboardServiceTest {
     private InventoryRepository inventoryRepository;
     private HousekeepingRepository housekeepingRepository;
     private MaintenanceRepository maintenanceRepository;
+    private InvoiceRepository invoiceRepository;
     private DashboardService dashboardService;
 
     @BeforeEach
@@ -50,6 +57,7 @@ class DashboardServiceTest {
         inventoryRepository = mock(InventoryRepository.class);
         housekeepingRepository = mock(HousekeepingRepository.class);
         maintenanceRepository = mock(MaintenanceRepository.class);
+        invoiceRepository = mock(InvoiceRepository.class);
 
         dashboardService = new DashboardService(
                 roomRepository,
@@ -57,7 +65,8 @@ class DashboardServiceTest {
                 financeService,
                 inventoryRepository,
                 housekeepingRepository,
-                maintenanceRepository
+                maintenanceRepository,
+                invoiceRepository
         );
     }
 
@@ -235,6 +244,189 @@ class DashboardServiceTest {
         assertEquals(100000.0, summary.financeStatistics().totalIncome());
         assertEquals(30000.0, summary.financeStatistics().totalExpenses());
         assertEquals(70000.0, summary.financeStatistics().netIncome());
+    }
+
+    // ── Report endpoints added for Step 45 ──
+
+    @Test
+    void getRevenueTrend_FillsEmptyBucketsWithZero() {
+        when(financeService.getTransactionsBetween(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 5)))
+                .thenReturn(List.of(incomeOn(LocalDate.of(2026, 9, 2), 5000.0)));
+
+        TrendResponse trend = dashboardService.getRevenueTrend(
+                LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 5), "DAY");
+
+        assertEquals("DAY", trend.groupBy());
+        assertEquals(5, trend.points().size());
+        assertEquals(0.0, trend.points().get(0).amount());
+        assertEquals(5000.0, trend.points().get(1).amount());
+        assertEquals(LocalDate.of(2026, 9, 1), trend.points().get(0).periodStart());
+    }
+
+    @Test
+    void getRevenueTrend_GroupsByMonth() {
+        when(financeService.getTransactionsBetween(LocalDate.of(2026, 7, 1), LocalDate.of(2026, 9, 30)))
+                .thenReturn(List.of(
+                        incomeOn(LocalDate.of(2026, 7, 15), 1000.0),
+                        incomeOn(LocalDate.of(2026, 7, 28), 500.0),
+                        incomeOn(LocalDate.of(2026, 9, 3), 2000.0)));
+
+        TrendResponse trend = dashboardService.getRevenueTrend(
+                LocalDate.of(2026, 7, 1), LocalDate.of(2026, 9, 30), "MONTH");
+
+        assertEquals("MONTH", trend.groupBy());
+        assertEquals(3, trend.points().size());
+        assertEquals(1500.0, trend.points().get(0).amount());
+        assertEquals(0.0, trend.points().get(1).amount());
+        assertEquals(2000.0, trend.points().get(2).amount());
+    }
+
+    @Test
+    void getRevenueTrend_IgnoresCancelledAndExpenseRows() {
+        FinanceTransaction cancelled = incomeOn(LocalDate.of(2026, 9, 1), 9000.0);
+        cancelled.setStatus(FinanceStatus.CANCELLED);
+
+        FinanceTransaction expense = incomeOn(LocalDate.of(2026, 9, 1), 4000.0);
+        expense.setType(FinanceTransactionType.EXPENSE);
+
+        when(financeService.getTransactionsBetween(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 1)))
+                .thenReturn(List.of(cancelled, expense));
+
+        TrendResponse trend = dashboardService.getRevenueTrend(
+                LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 1), "DAY");
+
+        assertEquals(1, trend.points().size());
+        assertEquals(0.0, trend.points().get(0).amount());
+    }
+
+    @Test
+    void getRevenueTrend_RejectsInvertedRange() {
+        assertThrows(IllegalArgumentException.class, () -> dashboardService.getRevenueTrend(
+                LocalDate.of(2026, 9, 10), LocalDate.of(2026, 9, 1), "DAY"));
+    }
+
+    @Test
+    void getRevenueByCategory_GroupsIncomeAndSkipsCancelled() {
+        FinanceTransaction cancelled = incomeOn(LocalDate.of(2026, 9, 1), 700.0);
+        cancelled.setStatus(FinanceStatus.CANCELLED);
+
+        FinanceTransaction rooms = incomeOn(LocalDate.of(2026, 9, 1), 8000.0);
+        rooms.setCategory(FinanceCategory.ROOM_REVENUE);
+
+        FinanceTransaction food = incomeOn(LocalDate.of(2026, 9, 2), 2000.0);
+        food.setCategory(FinanceCategory.FOOD_REVENUE);
+
+        when(financeService.getTransactionsBetween(null, null))
+                .thenReturn(List.of(cancelled, rooms, food));
+
+        Map<FinanceCategory, Double> byCategory = dashboardService.getRevenueByCategory(null, null);
+
+        assertEquals(8000.0, byCategory.get(FinanceCategory.ROOM_REVENUE));
+        assertEquals(2000.0, byCategory.get(FinanceCategory.FOOD_REVENUE));
+    }
+
+    @Test
+    void getReservationActivity_SeparatesArrivalsDeparturesAndCancellations() {
+        LocalDate today = LocalDate.now();
+        Reservation arriving = reservationOn(today, today.plusDays(2), ReservationStatus.CONFIRMED);
+        Reservation departing = reservationOn(today.minusDays(3), today, ReservationStatus.CHECKED_IN);
+        Reservation cancelledArrival = reservationOn(today, today.plusDays(1), ReservationStatus.CANCELLED);
+        Reservation pending = reservationOn(today.plusDays(5), today.plusDays(8), ReservationStatus.PENDING);
+
+        when(reservationRepository.findAll())
+                .thenReturn(List.of(arriving, departing, cancelledArrival, pending));
+
+        ReservationActivityResponse activity = dashboardService.getReservationActivity();
+
+        // Only `arriving` checks in today; the cancelled booking is excluded and
+        // `departing` checks in three days ago.
+        assertEquals(1, activity.todayArrivals());
+        assertEquals(1, activity.todayDepartures());
+        assertEquals(1, activity.pendingReservations());
+        assertEquals(1, activity.confirmedReservations());
+        assertEquals(1, activity.currentlyCheckedIn());
+    }
+
+    @Test
+    void getInvoiceOutstanding_SplitsPaidFromOutstanding() {
+        when(invoiceRepository.findAll()).thenReturn(List.of(
+                invoice(10000.0, 10000.0, 0.0),
+                invoice(20000.0, 5000.0, 15000.0),
+                invoice(4000.0, 0.0, 4000.0)));
+
+        InvoiceOutstandingResponse outstanding = dashboardService.getInvoiceOutstanding();
+
+        assertEquals(3, outstanding.totalInvoices());
+        assertEquals(2, outstanding.outstandingInvoices());
+        assertEquals(1, outstanding.paidInvoices());
+        assertEquals(34000.0, outstanding.totalInvoiced());
+        assertEquals(15000.0, outstanding.totalPaid());
+        assertEquals(19000.0, outstanding.totalOutstanding());
+    }
+
+    @Test
+    void getRecentActivity_MergesSourcesNewestFirstAndRespectsLimit() {
+        FinanceTransaction older = incomeOn(LocalDate.of(2026, 9, 1), 100.0);
+        older.setReferenceType(FinanceReferenceType.PAYMENT);
+        older.setCreatedAt(Instant.parse("2026-09-01T08:00:00Z"));
+
+        FinanceTransaction newer = incomeOn(LocalDate.of(2026, 9, 2), 200.0);
+        newer.setReferenceType(FinanceReferenceType.INVENTORY_TRANSACTION);
+        newer.setCreatedAt(Instant.parse("2026-09-02T08:00:00Z"));
+
+        Reservation reservation = reservationOn(
+                LocalDate.now(), LocalDate.now().plusDays(1), ReservationStatus.PENDING);
+        reservation.setCreatedAt(Instant.parse("2026-09-03T08:00:00Z"));
+
+        when(financeService.getAllTransactions()).thenReturn(List.of(older, newer));
+        when(reservationRepository.findAll()).thenReturn(List.of(reservation));
+
+        List<ActivityItemResponse> activity = dashboardService.getRecentActivity(2);
+
+        assertEquals(2, activity.size());
+        assertEquals("RESERVATION", activity.get(0).activityType());
+        assertEquals("INVENTORY", activity.get(1).activityType());
+    }
+
+    @Test
+    void getRecentActivity_SkipsCancelledTransactions() {
+        FinanceTransaction cancelled = incomeOn(LocalDate.of(2026, 9, 1), 100.0);
+        cancelled.setStatus(FinanceStatus.CANCELLED);
+        cancelled.setCreatedAt(Instant.parse("2026-09-01T08:00:00Z"));
+
+        when(financeService.getAllTransactions()).thenReturn(List.of(cancelled));
+        when(reservationRepository.findAll()).thenReturn(List.of());
+
+        assertEquals(0, dashboardService.getRecentActivity(null).size());
+    }
+
+    private FinanceTransaction incomeOn(LocalDate date, double amount) {
+        FinanceTransaction tx = new FinanceTransaction();
+        tx.setTransactionId("tx-" + date + "-" + amount);
+        tx.setStatus(FinanceStatus.ACTIVE);
+        tx.setType(FinanceTransactionType.INCOME);
+        tx.setCategory(FinanceCategory.ROOM_REVENUE);
+        tx.setAmount(amount);
+        tx.setTransactionDate(date);
+        return tx;
+    }
+
+    private Reservation reservationOn(LocalDate checkIn, LocalDate checkOut, ReservationStatus status) {
+        Reservation reservation = new Reservation();
+        reservation.setReservationId("res-" + checkIn + "-" + status);
+        reservation.setRoomId("room-1");
+        reservation.setCheckInDate(checkIn);
+        reservation.setCheckOutDate(checkOut);
+        reservation.setStatus(status);
+        return reservation;
+    }
+
+    private Invoice invoice(double total, double paid, double remaining) {
+        Invoice invoice = new Invoice();
+        invoice.setTotalAmount(total);
+        invoice.setPaidAmount(paid);
+        invoice.setRemainingAmount(remaining);
+        return invoice;
     }
 }
 

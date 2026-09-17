@@ -9,17 +9,14 @@ export interface NavItem {
 
 export const NAVIGATION_ITEMS: NavItem[] = [
   // ── Role Dashboards ──
+  // ADMIN and MANAGER share one dashboard; /admin and /manager remain valid
+  // routes for direct links, but only /dashboard appears here so neither role
+  // sees the same entry twice.
   {
     label: 'Dashboard',
-    path: '/admin',
+    path: '/dashboard',
     icon: 'dashboard',
-    allowedRoles: ['ADMIN'],
-  },
-  {
-    label: 'Dashboard',
-    path: '/manager',
-    icon: 'dashboard',
-    allowedRoles: ['MANAGER'],
+    allowedRoles: ['ADMIN', 'MANAGER'],
   },
   {
     label: 'Dashboard',
@@ -149,7 +146,7 @@ export const NAVIGATION_ITEMS: NavItem[] = [
     label: 'Reports',
     path: '/reports',
     icon: 'reports',
-    allowedRoles: ['ADMIN', 'MANAGER', 'ACCOUNTANT'],
+    allowedRoles: ['ADMIN', 'MANAGER'],
   },
   {
     label: 'Users',
@@ -160,9 +157,15 @@ export const NAVIGATION_ITEMS: NavItem[] = [
 
   // ── Customer Profile ──
   {
-    label: 'Profile',
-    path: '/profile',
+    label: 'My Profile',
+    path: '/customer/profile',
     icon: 'profile',
+    allowedRoles: ['CUSTOMER'],
+  },
+  {
+    label: 'My Account',
+    path: '/customer/account',
+    icon: 'account',
     allowedRoles: ['CUSTOMER'],
   },
 ];

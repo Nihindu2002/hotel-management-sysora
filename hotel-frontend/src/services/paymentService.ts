@@ -46,3 +46,12 @@ export const getPaymentById = async (paymentId: string): Promise<Payment> => {
   return response.data;
 };
 
+/**
+ * Retrieves every payment across the hotel, newest first.
+ * Uses: GET /api/payments (ADMIN, MANAGER, RECEPTIONIST, ACCOUNTANT)
+ */
+export const getAllPayments = async (): Promise<Payment[]> => {
+  const response = await api.get<Payment[]>('/payments');
+  return response.data;
+};
+

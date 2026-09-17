@@ -1,4 +1,9 @@
-export default function AdminDashboard() {
-  return <h1 className="text-2xl font-bold">Admin Dashboard</h1>;
-}
+import ManagementDashboard from '../dashboard/ManagementDashboard';
 
+/**
+ * ADMIN and MANAGER share the same management dashboard; the two routes exist
+ * so each role has its own landing path after login.
+ */
+export default function AdminDashboard() {
+  return <ManagementDashboard />;
+}
