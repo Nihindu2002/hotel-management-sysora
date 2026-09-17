@@ -18,6 +18,9 @@ import InventoryDashboardPage from './pages/inventory/InventoryDashboardPage';
 import InventoryItems from './pages/inventory/InventoryItems';
 import InventoryItemDetails from './pages/inventory/InventoryItemDetails';
 import AccountantDashboard from './pages/accountant/AccountantDashboard';
+import FinanceDashboard from './pages/finance/FinanceDashboard';
+import FinanceTransactions from './pages/finance/FinanceTransactions';
+import FinanceTransactionDetails from './pages/finance/FinanceTransactionDetails';
 import CustomerDashboard from './pages/customer/CustomerDashboard';
 import Unauthorized from './pages/Unauthorized';
 import PlaceholderPage from './pages/PlaceholderPage';
@@ -194,7 +197,12 @@ function App() {
           </Route>
 
           <Route element={<RoleRoute allowedRoles={['ADMIN', 'MANAGER', 'ACCOUNTANT']} />}>
-            <Route path="/finance" element={<PlaceholderPage title="Finance" />} />
+            <Route path="/finance" element={<FinanceDashboard />} />
+            <Route path="/finance/transactions" element={<FinanceTransactions />} />
+            <Route
+              path="/finance/transactions/:transactionId"
+              element={<FinanceTransactionDetails />}
+            />
             <Route path="/reports" element={<PlaceholderPage title="Reports" />} />
           </Route>
         </Route>
