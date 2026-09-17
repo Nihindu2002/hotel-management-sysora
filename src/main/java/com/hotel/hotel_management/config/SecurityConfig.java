@@ -227,6 +227,12 @@ public class SecurityConfig {
 
                         .requestMatchers(
                                 HttpMethod.GET,
+                                "/api/maintenance/dashboard"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "MAINTENANCE")
+
+                        .requestMatchers(
+                                HttpMethod.GET,
                                 "/api/maintenance/my"
                         )
                         .hasRole("MAINTENANCE")
@@ -281,6 +287,19 @@ public class SecurityConfig {
 
                         .requestMatchers(
                                 HttpMethod.GET,
+                                "/api/inventory/dashboard"
+                        )
+                        .hasAnyRole(
+                                "ADMIN",
+                                "MANAGER",
+                                "RECEPTIONIST",
+                                "STAFF",
+                                "HOUSEKEEPING",
+                                "MAINTENANCE"
+                        )
+
+                        .requestMatchers(
+                                HttpMethod.GET,
                                 "/api/inventory/low-stock"
                         )
                         .hasAnyRole(
@@ -288,7 +307,8 @@ public class SecurityConfig {
                                 "MANAGER",
                                 "RECEPTIONIST",
                                 "STAFF",
-                                "HOUSEKEEPING"
+                                "HOUSEKEEPING",
+                                "MAINTENANCE"
                         )
 
                         .requestMatchers(
@@ -348,7 +368,8 @@ public class SecurityConfig {
                                 "MANAGER",
                                 "RECEPTIONIST",
                                 "STAFF",
-                                "HOUSEKEEPING"
+                                "HOUSEKEEPING",
+                                "MAINTENANCE"
                         )
 
                         .requestMatchers(
@@ -360,7 +381,8 @@ public class SecurityConfig {
                                 "MANAGER",
                                 "RECEPTIONIST",
                                 "STAFF",
-                                "HOUSEKEEPING"
+                                "HOUSEKEEPING",
+                                "MAINTENANCE"
                         )
 
                         .requestMatchers("/api/finance", "/api/finance/**", "/api/accountant/**")

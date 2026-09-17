@@ -90,6 +90,13 @@ public class InventoryController {
                 inventoryService.getLowStockItems());
     }
 
+    @Operation(summary = "Get inventory dashboard", description = "Returns totals, stock status counts, inventory value, and recent stock movements")
+    @GetMapping("/dashboard")
+    public ResponseEntity<InventoryDashboardResponse> getDashboard() {
+        return ResponseEntity.ok(
+                inventoryService.getDashboard());
+    }
+
     @Operation(summary = "Stock In (Purchase/Restock)", description = "Adds stock and automatically creates a finance EXPENSE record if purchase")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Stock added"),

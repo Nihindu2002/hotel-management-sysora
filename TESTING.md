@@ -151,7 +151,76 @@ Missing Firestore profiles, `enabled: false`, malformed roles, invalid tokens,
 and expired tokens also return 401. A valid authenticated user with a role not
 allowed for the endpoint returns 403.
 
-## F. Admin role
+## F. Maintenance workflow
+
+Maintenance tasks move through `PENDING → ASSIGNED → IN_PROGRESS → COMPLETED`, or
+to `CANCELLED` from any state before completion.
+
+| Endpoint | Allowed roles |
+| --- | --- |
+| `GET /api/maintenance/dashboard` | `ADMIN`, `MANAGER`, `RECEPTIONIST`, `MAINTENANCE` |
+| `GET /api/maintenance/tasks` | `ADMIN`, `MANAGER`, `RECEPTIONIST`, `MAINTENANCE` |
+| `GET /api/maintenance/tasks/{taskId}` | `ADMIN`, `MANAGER`, `RECEPTIONIST`, `MAINTENANCE` |
+| `GET /api/maintenance/rooms/{roomId}/tasks` | `ADMIN`, `MANAGER`, `RECEPTIONIST`, `MAINTENANCE` |
+| `GET /api/maintenance/my` | `MAINTENANCE` |
+| `GET /api/inventory/items`, `/api/inventory/low-stock` | `ADMIN`, `MANAGER`, `RECEPTIONIST`, `STAFF`, `HOUSEKEEPING`, `MAINTENANCE` |
+| `POST /api/maintenance/tasks` | `ADMIN`, `MANAGER`, `RECEPTIONIST` |
+| `PATCH /api/maintenance/tasks/{taskId}/assign` | `ADMIN`, `MANAGER` |
+| `PATCH /api/maintenance/tasks/{taskId}/start` | `MAINTENANCE` |
+| `PATCH /api/maintenance/tasks/{taskId}/complete` | `MAINTENANCE` |
+| `PATCH /api/maintenance/tasks/{taskId}/cost` | `ADMIN`, `MANAGER` |
+| `PATCH /api/maintenance/tasks/{taskId}/cancel` | `ADMIN`, `MANAGER` |
+
+Expected Postman checks:
+
+| Token role | Request | Expected status |
+| --- | --- | --- |
+| `RECEPTIONIST` | `POST /api/maintenance/tasks` | 200 |
+| `RECEPTIONIST` | `PATCH /api/maintenance/tasks/{id}/assign` | 403 |
+| `RECEPTIONIST` | `PATCH /api/maintenance/tasks/{id}/cancel` | 403 |
+| `MAINTENANCE` | `GET /api/maintenance/my` | 200 |
+| `MAINTENANCE` | `POST /api/maintenance/tasks` | 403 |
+| `MAINTENANCE` | `PATCH /api/maintenance/tasks/{id}/start` | 200 (only if assigned to caller) |
+| `MANAGER` | `PATCH /api/maintenance/tasks/{id}/assign` | 200 |
+| `MANAGER` | `PATCH /api/maintenance/tasks/{id}/start` | 403 |
+| `ADMIN` | `PATCH /api/maintenance/tasks/{id}/cancel` | 200 |
+| `CUSTOMER` | any `/api/maintenance/**` | 403 |
+
+### Assignment rules
+
+`PATCH /api/maintenance/tasks/{taskId}/assign` applies only to staff whose
+profile satisfies **both** `department = MAINTENANCE` and
+`employmentStatus = ACTIVE`. Any other staff member returns HTTP 400 with
+`Staff member is not active` or `Staff member must belong to MAINTENANCE department`.
+
+### Completion and finance
+
+`PATCH /api/maintenance/tasks/{taskId}/complete` accepts:
+
+```json
+{ "actualCost": 2500.0, "completionNotes": "Replaced the mixer tap cartridge." }
+```
+
+- `actualCost > 0` creates a Finance `EXPENSE` with category `MAINTENANCE` and
+  reference type `MAINTENANCE_TASK`.
+- `actualCost` of `0` (or omitted) creates **no** finance transaction.
+- Re-sending a completion or calling `PATCH .../cost` updates the existing
+  transaction (`updateMaintenanceExpense`) instead of inserting a second one.
+  Setting the cost to `0` cancels the existing transaction.
+- Cancelling a task cancels any finance transaction already recorded for it.
+
+### Room status
+
+Creating a task sets the room to `MAINTENANCE`. When the last open task for that
+room is completed or cancelled, the room is resolved in this order:
+
+1. Another `PENDING`/`ASSIGNED`/`IN_PROGRESS` task exists → stays `MAINTENANCE`
+2. A guest is checked in → `OCCUPIED`
+3. A housekeeping task is pending/assigned/in progress → `CLEANING`
+4. A `CONFIRMED`/`PENDING` reservation has not yet checked out → `RESERVED`
+5. Otherwise → `AVAILABLE`
+
+## G. Admin role
 
 ```http
 GET http://localhost:8080/api/admin/test

@@ -11,6 +11,9 @@ import HousekeepingTasks from './pages/housekeeping/HousekeepingTasks';
 import HousekeepingTaskDetails from './pages/housekeeping/HousekeepingTaskDetails';
 import HousekeepingTaskCreate from './pages/housekeeping/HousekeepingTaskCreate';
 import MaintenanceDashboard from './pages/maintenance/MaintenanceDashboard';
+import MaintenanceTasks from './pages/maintenance/MaintenanceTasks';
+import MaintenanceTaskDetails from './pages/maintenance/MaintenanceTaskDetails';
+import MaintenanceTaskCreate from './pages/maintenance/MaintenanceTaskCreate';
 import AccountantDashboard from './pages/accountant/AccountantDashboard';
 import CustomerDashboard from './pages/customer/CustomerDashboard';
 import Unauthorized from './pages/Unauthorized';
@@ -82,8 +85,33 @@ function App() {
             <Route path="/housekeeping/tasks/new" element={<HousekeepingTaskCreate />} />
           </Route>
 
-          <Route element={<RoleRoute allowedRoles={['MAINTENANCE']} />}>
+          {/* Maintenance Operations (Admin, Manager, Receptionist, Maintenance) */}
+          <Route
+            element={
+              <RoleRoute
+                allowedRoles={['ADMIN', 'MANAGER', 'RECEPTIONIST', 'MAINTENANCE']}
+              />
+            }
+          >
+            <Route path="/maintenance/tasks" element={<MaintenanceTasks />} />
+            <Route path="/maintenance/tasks/:taskId" element={<MaintenanceTaskDetails />} />
+            <Route path="/maintenance-tasks" element={<Navigate to="/maintenance/tasks" replace />} />
+          </Route>
+
+          {/* Maintenance Dashboard (Admin, Manager, Receptionist, Maintenance) */}
+          <Route
+            element={
+              <RoleRoute
+                allowedRoles={['ADMIN', 'MANAGER', 'RECEPTIONIST', 'MAINTENANCE']}
+              />
+            }
+          >
             <Route path="/maintenance" element={<MaintenanceDashboard />} />
+          </Route>
+
+          {/* Maintenance Task Creation (Admin, Manager, Receptionist) */}
+          <Route element={<RoleRoute allowedRoles={['ADMIN', 'MANAGER', 'RECEPTIONIST']} />}>
+            <Route path="/maintenance/tasks/new" element={<MaintenanceTaskCreate />} />
           </Route>
 
           <Route element={<RoleRoute allowedRoles={['ACCOUNTANT']} />}>
@@ -141,10 +169,6 @@ function App() {
             <Route path="/payments" element={<PlaceholderPage title="Payments" />} />
           </Route>
 
-
-          <Route element={<RoleRoute allowedRoles={['ADMIN', 'MANAGER', 'RECEPTIONIST', 'MAINTENANCE']} />}>
-            <Route path="/maintenance-tasks" element={<PlaceholderPage title="Maintenance Tasks" />} />
-          </Route>
 
           <Route element={<RoleRoute allowedRoles={['ADMIN', 'MANAGER']} />}>
             <Route path="/inventory" element={<PlaceholderPage title="Inventory" />} />

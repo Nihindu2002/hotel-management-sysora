@@ -119,7 +119,7 @@ export const NAVIGATION_ITEMS: NavItem[] = [
   },
   {
     label: 'Maintenance',
-    path: '/maintenance-tasks',
+    path: '/maintenance/tasks',
     icon: 'maintenance',
     allowedRoles: ['ADMIN', 'MANAGER', 'RECEPTIONIST', 'MAINTENANCE'],
   },

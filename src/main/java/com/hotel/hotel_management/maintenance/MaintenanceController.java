@@ -39,11 +39,28 @@ public class MaintenanceController {
                         token != null ? token.getUid() : null));
     }
 
-    @Operation(summary = "Get all maintenance tasks", description = "Retrieves a list of all maintenance tasks")
+    @Operation(summary = "Get all maintenance tasks", description = "Retrieves maintenance tasks, optionally filtered by status, priority, issue type, assigned staff, or room")
     @GetMapping("/tasks")
-    public ResponseEntity<List<MaintenanceTask>> getAllTasks() {
+    public ResponseEntity<List<MaintenanceTask>> getAllTasks(
+            @RequestParam(required = false) MaintenanceStatus status,
+            @RequestParam(required = false) MaintenancePriority priority,
+            @RequestParam(required = false) MaintenanceIssueType issueType,
+            @RequestParam(required = false) String assignedTo,
+            @RequestParam(required = false) String roomId) {
+
         return ResponseEntity.ok(
-                maintenanceService.getAllTasks());
+                maintenanceService.getTasksFiltered(
+                        status,
+                        priority,
+                        issueType,
+                        assignedTo,
+                        roomId));
+    }
+
+    @Operation(summary = "Get maintenance dashboard statistics", description = "Returns pending, assigned, in-progress, completed-today, high/urgent, and total cost metrics")
+    @GetMapping("/dashboard")
+    public ResponseEntity<MaintenanceDashboardResponse> getDashboard() {
+        return ResponseEntity.ok(maintenanceService.getDashboard());
     }
 
     @Operation(summary = "Get maintenance task by ID", description = "Retrieves maintenance task details by taskId")
@@ -120,9 +137,14 @@ public class MaintenanceController {
             @Parameter(hidden = true) @AuthenticationPrincipal FirebaseToken token) {
 
         Double actualCost = request != null ? request.actualCost() : 0.0;
+        String completionNotes = request != null ? request.completionNotes() : null;
 
         return ResponseEntity.ok(
-                maintenanceService.completeTask(taskId, token.getUid(), actualCost));
+                maintenanceService.completeTask(
+                        taskId,
+                        token.getUid(),
+                        actualCost,
+                        completionNotes));
     }
 
     @Operation(summary = "Update maintenance task cost", description = "Updates actual cost for a task and synchronizes with finance expense record")

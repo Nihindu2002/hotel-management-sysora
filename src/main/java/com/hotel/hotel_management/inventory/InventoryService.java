@@ -223,5 +223,64 @@ public class InventoryService {
         getItemById(itemId);
         return inventoryTransactionRepository.findByItemId(itemId);
     }
+
+    public InventoryDashboardResponse getDashboard() {
+
+        List<InventoryItem> items = inventoryRepository.findAll();
+
+        long active = items.stream()
+                .filter(i -> i.getStatus() == InventoryStatus.ACTIVE)
+                .count();
+        long inactive = items.stream()
+                .filter(i -> i.getStatus() == InventoryStatus.INACTIVE)
+                .count();
+
+        long lowStock = items.stream()
+                .filter(i -> i.getStatus() == InventoryStatus.ACTIVE)
+                .filter(this::isAtOrBelowMinimum)
+                .count();
+
+        long outOfStock = items.stream()
+                .filter(i -> i.getStatus() == InventoryStatus.ACTIVE)
+                .filter(i -> i.getQuantity() == null || i.getQuantity() <= 0)
+                .count();
+
+        double totalValue = items.stream()
+                .filter(i -> i.getStatus() == InventoryStatus.ACTIVE)
+                .mapToDouble(this::stockValue)
+                .sum();
+
+        List<InventoryTransaction> recent = inventoryTransactionRepository.findAll().stream()
+                .sorted((a, b) -> {
+                    if (a.getCreatedAt() == null || b.getCreatedAt() == null) {
+                        return 0;
+                    }
+                    return b.getCreatedAt().compareTo(a.getCreatedAt());
+                })
+                .limit(10)
+                .collect(Collectors.toList());
+
+        return new InventoryDashboardResponse(
+                items.size(),
+                active,
+                inactive,
+                lowStock,
+                outOfStock,
+                totalValue,
+                recent);
+    }
+
+    private boolean isAtOrBelowMinimum(InventoryItem item) {
+        double quantity = item.getQuantity() != null ? item.getQuantity() : 0.0;
+        double minimum = item.getMinimumStock() != null ? item.getMinimumStock() : 0.0;
+        return quantity <= minimum;
+    }
+
+    /** Current stock valued at the item's unit cost. */
+    private double stockValue(InventoryItem item) {
+        double quantity = item.getQuantity() != null ? item.getQuantity() : 0.0;
+        double unitCost = item.getUnitCost() != null ? item.getUnitCost() : 0.0;
+        return quantity * unitCost;
+    }
 }
 

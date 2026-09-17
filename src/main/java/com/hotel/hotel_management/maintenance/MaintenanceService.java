@@ -3,8 +3,10 @@ package com.hotel.hotel_management.maintenance;
 import com.hotel.hotel_management.common.ForbiddenException;
 import com.hotel.hotel_management.finance.FinanceService;
 import com.hotel.hotel_management.housekeeping.HousekeepingRepository;
-import com.hotel.hotel_management.housekeeping.HousekeepingTask;
 import com.hotel.hotel_management.housekeeping.HousekeepingTaskStatus;
+import com.hotel.hotel_management.reservation.Reservation;
+import com.hotel.hotel_management.reservation.ReservationRepository;
+import com.hotel.hotel_management.reservation.ReservationStatus;
 import com.hotel.hotel_management.room.Room;
 import com.hotel.hotel_management.room.RoomRepository;
 import com.hotel.hotel_management.room.RoomStatus;
@@ -16,8 +18,11 @@ import com.hotel.hotel_management.staff.StaffRepository;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 @Service
 public class MaintenanceService {
@@ -28,6 +33,7 @@ public class MaintenanceService {
     private final HousekeepingRepository housekeepingRepository;
     private final StaffRepository staffRepository;
     private final FinanceService financeService;
+    private final ReservationRepository reservationRepository;
 
     public MaintenanceService(
             MaintenanceRepository maintenanceRepository,
@@ -35,7 +41,17 @@ public class MaintenanceService {
             UserRepository userRepository,
             HousekeepingRepository housekeepingRepository,
             StaffRepository staffRepository) {
-        this(maintenanceRepository, roomRepository, userRepository, housekeepingRepository, staffRepository, null);
+        this(maintenanceRepository, roomRepository, userRepository, housekeepingRepository, staffRepository, null, null);
+    }
+
+    public MaintenanceService(
+            MaintenanceRepository maintenanceRepository,
+            RoomRepository roomRepository,
+            UserRepository userRepository,
+            HousekeepingRepository housekeepingRepository,
+            StaffRepository staffRepository,
+            FinanceService financeService) {
+        this(maintenanceRepository, roomRepository, userRepository, housekeepingRepository, staffRepository, financeService, null);
     }
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -45,7 +61,8 @@ public class MaintenanceService {
             UserRepository userRepository,
             HousekeepingRepository housekeepingRepository,
             StaffRepository staffRepository,
-            FinanceService financeService) {
+            FinanceService financeService,
+            ReservationRepository reservationRepository) {
 
         this.maintenanceRepository = maintenanceRepository;
         this.roomRepository = roomRepository;
@@ -53,6 +70,7 @@ public class MaintenanceService {
         this.housekeepingRepository = housekeepingRepository;
         this.staffRepository = staffRepository;
         this.financeService = financeService;
+        this.reservationRepository = reservationRepository;
     }
 
     public MaintenanceTask createTask(
@@ -139,13 +157,21 @@ public class MaintenanceService {
     }
 
     public MaintenanceTask completeTask(String taskId, String staffUid) {
-        return completeTask(taskId, staffUid, 0.0);
+        return completeTask(taskId, staffUid, 0.0, null);
     }
 
     public MaintenanceTask completeTask(
             String taskId,
             String staffUid,
             Double actualCost) {
+        return completeTask(taskId, staffUid, actualCost, null);
+    }
+
+    public MaintenanceTask completeTask(
+            String taskId,
+            String staffUid,
+            Double actualCost,
+            String completionNotes) {
 
         MaintenanceTask task = getTaskById(taskId);
 
@@ -178,7 +204,8 @@ public class MaintenanceService {
                 taskId,
                 MaintenanceStatus.COMPLETED,
                 Instant.now(),
-                cost);
+                cost,
+                completionNotes);
 
         updateRoomStatusAfterMaintenanceResolution(task.getRoomId(), taskId);
 
@@ -245,6 +272,84 @@ public class MaintenanceService {
         return maintenanceRepository.findAll();
     }
 
+    /**
+     * Returns maintenance tasks matching the supplied filters. Any filter left
+     * {@code null} is ignored. Filtering is applied in memory because Firestore
+     * would otherwise require a composite index for each filter combination.
+     */
+    public List<MaintenanceTask> getTasksFiltered(
+            MaintenanceStatus status,
+            MaintenancePriority priority,
+            MaintenanceIssueType issueType,
+            String assignedTo,
+            String roomId) {
+
+        Stream<MaintenanceTask> tasks = maintenanceRepository.findAll().stream();
+
+        if (status != null) {
+            tasks = tasks.filter(t -> t.getStatus() == status);
+        }
+        if (priority != null) {
+            tasks = tasks.filter(t -> t.getPriority() == priority);
+        }
+        if (issueType != null) {
+            tasks = tasks.filter(t -> t.getIssueType() == issueType);
+        }
+        if (assignedTo != null && !assignedTo.isBlank()) {
+            tasks = tasks.filter(t -> assignedTo.equals(t.getAssignedTo()));
+        }
+        if (roomId != null && !roomId.isBlank()) {
+            tasks = tasks.filter(t -> roomId.equals(t.getRoomId()));
+        }
+
+        return tasks.toList();
+    }
+
+    public MaintenanceDashboardResponse getDashboard() {
+
+        List<MaintenanceTask> tasks = maintenanceRepository.findAll();
+        LocalDate today = LocalDate.now(ZoneId.systemDefault());
+
+        long pending = tasks.stream()
+                .filter(t -> t.getStatus() == MaintenanceStatus.PENDING).count();
+        long assigned = tasks.stream()
+                .filter(t -> t.getStatus() == MaintenanceStatus.ASSIGNED).count();
+        long inProgress = tasks.stream()
+                .filter(t -> t.getStatus() == MaintenanceStatus.IN_PROGRESS).count();
+        long cancelled = tasks.stream()
+                .filter(t -> t.getStatus() == MaintenanceStatus.CANCELLED).count();
+
+        long completedToday = tasks.stream()
+                .filter(t -> t.getStatus() == MaintenanceStatus.COMPLETED)
+                .filter(t -> t.getCompletedAt() != null)
+                .filter(t -> LocalDate.ofInstant(t.getCompletedAt(), ZoneId.systemDefault())
+                        .equals(today))
+                .count();
+
+        long highPriorityActive = tasks.stream()
+                .filter(t -> t.getPriority() == MaintenancePriority.HIGH
+                        || t.getPriority() == MaintenancePriority.URGENT)
+                .filter(t -> t.getStatus() != MaintenanceStatus.COMPLETED
+                        && t.getStatus() != MaintenanceStatus.CANCELLED)
+                .count();
+
+        double totalCost = tasks.stream()
+                .filter(t -> t.getStatus() == MaintenanceStatus.COMPLETED)
+                .filter(t -> t.getActualCost() != null)
+                .mapToDouble(MaintenanceTask::getActualCost)
+                .sum();
+
+        return new MaintenanceDashboardResponse(
+                pending,
+                assigned,
+                inProgress,
+                completedToday,
+                highPriorityActive,
+                cancelled,
+                tasks.size(),
+                totalCost);
+    }
+
     public List<MaintenanceTask> getTasksByRoomId(String roomId) {
         return maintenanceRepository.findByRoomId(roomId);
     }
@@ -253,6 +358,15 @@ public class MaintenanceService {
         return maintenanceRepository.findByAssignedTo(staffUid);
     }
 
+    /**
+     * Resolves the room's status once a maintenance task stops blocking it.
+     *
+     * <p>The room was forced to {@link RoomStatus#MAINTENANCE} when maintenance
+     * began, so the previous status cannot simply be restored — other processes
+     * may now own the room. The room is resolved to the first matching state, in
+     * priority order: still under maintenance, occupied by an in-house guest,
+     * awaiting cleaning, held by an upcoming reservation, or finally available.
+     */
     private void updateRoomStatusAfterMaintenanceResolution(
             String roomId,
             String currentTaskId) {
@@ -262,32 +376,72 @@ public class MaintenanceService {
 
         boolean hasOtherActiveMaintenance = roomMaintenanceTasks.stream()
                 .filter(t -> !t.getTaskId().equals(currentTaskId))
-                .anyMatch(t ->
-                        t.getStatus() == MaintenanceStatus.PENDING
-                                || t.getStatus() == MaintenanceStatus.ASSIGNED
-                                || t.getStatus() == MaintenanceStatus.IN_PROGRESS);
+                .anyMatch(t -> isActiveMaintenanceStatus(t.getStatus()));
 
         if (hasOtherActiveMaintenance) {
             return;
         }
 
-        List<HousekeepingTask> roomHousekeepingTasks =
-                housekeepingRepository.findByRoomId(roomId);
-
-        boolean hasActiveHousekeeping = roomHousekeepingTasks.stream()
-                .anyMatch(h ->
-                        h.getStatus() == HousekeepingTaskStatus.PENDING
-                                || h.getStatus() == HousekeepingTaskStatus.ASSIGNED
-                                || h.getStatus() == HousekeepingTaskStatus.IN_PROGRESS);
-
-        if (hasActiveHousekeeping) {
-            roomRepository.updateStatus(roomId, RoomStatus.CLEANING);
-        } else {
-            Room room = roomRepository.findById(roomId).orElse(null);
-            if (room != null && room.getStatus() == RoomStatus.MAINTENANCE) {
-                roomRepository.updateStatus(roomId, RoomStatus.AVAILABLE);
-            }
+        Room room = roomRepository.findById(roomId).orElse(null);
+        if (room == null) {
+            return;
         }
+
+        // A guest currently in the room outranks every cleaning/reservation state.
+        if (hasCheckedInReservation(roomId)) {
+            roomRepository.updateStatus(roomId, RoomStatus.OCCUPIED);
+            return;
+        }
+
+        if (hasActiveHousekeepingTask(roomId)) {
+            roomRepository.updateStatus(roomId, RoomStatus.CLEANING);
+            return;
+        }
+
+        if (hasUpcomingReservation(roomId)) {
+            roomRepository.updateStatus(roomId, RoomStatus.RESERVED);
+            return;
+        }
+
+        // Only release a room this task actually blocked; never resurrect a
+        // status another process changed while maintenance was in progress.
+        if (room.getStatus() == RoomStatus.MAINTENANCE) {
+            roomRepository.updateStatus(roomId, RoomStatus.AVAILABLE);
+        }
+    }
+
+    private boolean isActiveMaintenanceStatus(MaintenanceStatus status) {
+        return status == MaintenanceStatus.PENDING
+                || status == MaintenanceStatus.ASSIGNED
+                || status == MaintenanceStatus.IN_PROGRESS;
+    }
+
+    private boolean hasActiveHousekeepingTask(String roomId) {
+        return housekeepingRepository.findByRoomId(roomId).stream()
+                .anyMatch(h -> h.getStatus() == HousekeepingTaskStatus.PENDING
+                        || h.getStatus() == HousekeepingTaskStatus.ASSIGNED
+                        || h.getStatus() == HousekeepingTaskStatus.IN_PROGRESS);
+    }
+
+    private List<Reservation> findReservations(String roomId) {
+        if (reservationRepository == null) {
+            return List.of();
+        }
+        return reservationRepository.findByRoomId(roomId);
+    }
+
+    private boolean hasCheckedInReservation(String roomId) {
+        return findReservations(roomId).stream()
+                .anyMatch(r -> r.getStatus() == ReservationStatus.CHECKED_IN);
+    }
+
+    private boolean hasUpcomingReservation(String roomId) {
+        LocalDate today = LocalDate.now(ZoneId.systemDefault());
+        return findReservations(roomId).stream()
+                .filter(r -> r.getStatus() == ReservationStatus.CONFIRMED
+                        || r.getStatus() == ReservationStatus.PENDING)
+                .anyMatch(r -> r.getCheckOutDate() == null
+                        || !r.getCheckOutDate().isBefore(today));
     }
 }
 

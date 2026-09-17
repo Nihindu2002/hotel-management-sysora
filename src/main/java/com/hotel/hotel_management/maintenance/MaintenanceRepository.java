@@ -42,6 +42,7 @@ public class MaintenanceRepository {
         data.put("completedAt", task.getCompletedAt());
         data.put("updatedAt", task.getUpdatedAt());
         data.put("actualCost", task.getActualCost());
+        data.put("completionNotes", task.getCompletionNotes());
 
         try {
             document.set(data).get();
@@ -186,6 +187,15 @@ public class MaintenanceRepository {
             MaintenanceStatus status,
             Instant timestamp,
             Double actualCost) {
+        return updateStatus(taskId, status, timestamp, actualCost, null);
+    }
+
+    public MaintenanceTask updateStatus(
+            String taskId,
+            MaintenanceStatus status,
+            Instant timestamp,
+            Double actualCost,
+            String completionNotes) {
 
         DocumentReference document =
                 firestore.collection("maintenanceTasks")
@@ -201,6 +211,9 @@ public class MaintenanceRepository {
             updates.put("completedAt", timestamp);
             if (actualCost != null) {
                 updates.put("actualCost", actualCost);
+            }
+            if (completionNotes != null) {
+                updates.put("completionNotes", completionNotes);
             }
         }
 
@@ -297,6 +310,7 @@ public class MaintenanceRepository {
         }
 
         task.setActualCost(snapshot.getDouble("actualCost"));
+        task.setCompletionNotes(snapshot.getString("completionNotes"));
 
         return task;
     }

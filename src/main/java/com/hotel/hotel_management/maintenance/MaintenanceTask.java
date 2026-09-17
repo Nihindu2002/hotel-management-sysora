@@ -17,6 +17,7 @@ public class MaintenanceTask {
     private Instant completedAt;
     private Instant updatedAt;
     private Double actualCost;
+    private String completionNotes;
 
     public MaintenanceTask() {
     }
@@ -123,6 +124,14 @@ public class MaintenanceTask {
 
     public void setActualCost(Double actualCost) {
         this.actualCost = actualCost;
+    }
+
+    public String getCompletionNotes() {
+        return completionNotes;
+    }
+
+    public void setCompletionNotes(String completionNotes) {
+        this.completionNotes = completionNotes;
     }
 }
 
