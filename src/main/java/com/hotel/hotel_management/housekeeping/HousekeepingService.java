@@ -1,6 +1,8 @@
 package com.hotel.hotel_management.housekeeping;
 
 import com.hotel.hotel_management.common.ForbiddenException;
+import com.hotel.hotel_management.notification.NotificationService;
+import com.hotel.hotel_management.notification.NotificationType;
 import com.hotel.hotel_management.room.Room;
 import com.hotel.hotel_management.room.RoomRepository;
 import com.hotel.hotel_management.room.RoomStatus;
@@ -24,6 +26,7 @@ public class HousekeepingService {
     private final RoomRepository roomRepository;
     private final UserRepository userRepository;
     private final StaffRepository staffRepository;
+    private final NotificationService notificationService;
 
     public HousekeepingService(
             HousekeepingRepository housekeepingRepository,
@@ -31,10 +34,22 @@ public class HousekeepingService {
             UserRepository userRepository,
             StaffRepository staffRepository) {
 
+        this(housekeepingRepository, roomRepository, userRepository, staffRepository, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public HousekeepingService(
+            HousekeepingRepository housekeepingRepository,
+            RoomRepository roomRepository,
+            UserRepository userRepository,
+            StaffRepository staffRepository,
+            NotificationService notificationService) {
+
         this.housekeepingRepository = housekeepingRepository;
         this.roomRepository = roomRepository;
         this.userRepository = userRepository;
         this.staffRepository = staffRepository;
+        this.notificationService = notificationService;
     }
 
     public HousekeepingTask createTask(CreateHousekeepingTaskRequest request) {
@@ -98,10 +113,22 @@ public class HousekeepingService {
             throw new IllegalArgumentException("Staff member must belong to HOUSEKEEPING department");
         }
 
-        return housekeepingRepository.updateAssignment(
+        HousekeepingTask assigned = housekeepingRepository.updateAssignment(
                 taskId,
                 staffUid,
                 HousekeepingTaskStatus.ASSIGNED);
+
+        if (notificationService != null) {
+            notificationService.emit(
+                    staffUid,
+                    NotificationType.HOUSEKEEPING,
+                    "Housekeeping task assigned",
+                    "You have been assigned a housekeeping task for room " + task.getRoomId() + ".",
+                    "/housekeeping/tasks",
+                    taskId);
+        }
+
+        return assigned;
     }
 
     public HousekeepingTask startTask(String taskId, String staffUid) {

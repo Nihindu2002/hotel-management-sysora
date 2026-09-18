@@ -61,6 +61,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/api/users/me")
                         .authenticated()
 
+                        // Per-user by construction: the controller reads the uid
+                        // from the token and the service verifies ownership, so
+                        // any authenticated role may use its own mailbox.
+                        .requestMatchers("/api/notifications", "/api/notifications/**")
+                        .authenticated()
+
                         .requestMatchers("/api/admin/**")
                         .hasRole("ADMIN")
 

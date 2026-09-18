@@ -1,16 +1,22 @@
 package com.hotel.hotel_management.inventory;
 
 import com.hotel.hotel_management.finance.FinanceService;
+import com.hotel.hotel_management.notification.NotificationService;
+import com.hotel.hotel_management.notification.NotificationType;
+import com.hotel.hotel_management.user.Role;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 class InventoryServiceTest {
@@ -18,6 +24,7 @@ class InventoryServiceTest {
     private InventoryRepository inventoryRepository;
     private InventoryTransactionRepository inventoryTransactionRepository;
     private FinanceService financeService;
+    private NotificationService notificationService;
     private InventoryService inventoryService;
 
     @BeforeEach
@@ -25,10 +32,12 @@ class InventoryServiceTest {
         inventoryRepository = mock(InventoryRepository.class);
         inventoryTransactionRepository = mock(InventoryTransactionRepository.class);
         financeService = mock(FinanceService.class);
+        notificationService = mock(NotificationService.class);
         inventoryService = new InventoryService(
                 inventoryRepository,
                 inventoryTransactionRepository,
-                financeService
+                financeService,
+                notificationService
         );
     }
 
@@ -86,6 +95,51 @@ class InventoryServiceTest {
 
         verify(inventoryRepository).updateQuantity("item-2", 25.0);
         verifyNoInteractions(financeService);
+    }
+
+    @Test
+    void stockOut_AlertsAdminsAndManagersWhenCrossingMinimumStock() {
+        // 30 on hand, minimum 10 — drawing down to 8 is the crossing.
+        InventoryItem item = item("item-low", 30.0, 10.0, 500.0, InventoryStatus.ACTIVE);
+        when(inventoryRepository.findById("item-low")).thenReturn(Optional.of(item));
+        when(inventoryTransactionRepository.save(any(InventoryTransaction.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        inventoryService.stockOut(new StockOutRequest("item-low", 22.0, "REQ-1", null), "staff-uid");
+
+        verify(notificationService).emitToRoles(
+                eq(Set.of(Role.ADMIN, Role.MANAGER)),
+                eq(NotificationType.INVENTORY),
+                contains("Bath Towel"),
+                anyString(),
+                eq("/inventory/items/item-low"),
+                eq("item-low"));
+    }
+
+    @Test
+    void stockOut_DoesNotAlertWhileAlreadyBelowMinimum() {
+        // Already below the minimum before the movement — no new crossing.
+        InventoryItem item = item("item-already-low", 8.0, 10.0, 500.0, InventoryStatus.ACTIVE);
+        when(inventoryRepository.findById("item-already-low")).thenReturn(Optional.of(item));
+        when(inventoryTransactionRepository.save(any(InventoryTransaction.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        inventoryService.stockOut(
+                new StockOutRequest("item-already-low", 2.0, "REQ-2", null), "staff-uid");
+
+        verify(notificationService, never()).emitToRoles(any(), any(), anyString(), anyString(), any(), any());
+    }
+
+    @Test
+    void stockOut_DoesNotAlertWhenStayingAboveMinimum() {
+        InventoryItem item = item("item-healthy", 30.0, 10.0, 500.0, InventoryStatus.ACTIVE);
+        when(inventoryRepository.findById("item-healthy")).thenReturn(Optional.of(item));
+        when(inventoryTransactionRepository.save(any(InventoryTransaction.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        inventoryService.stockOut(new StockOutRequest("item-healthy", 5.0, "REQ-3", null), "staff-uid");
+
+        verify(notificationService, never()).emitToRoles(any(), any(), anyString(), anyString(), any(), any());
     }
 
     @Test

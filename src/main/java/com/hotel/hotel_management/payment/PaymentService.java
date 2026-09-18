@@ -4,6 +4,8 @@ import com.hotel.hotel_management.invoice.Invoice;
 import com.hotel.hotel_management.invoice.InvoiceRepository;
 import com.hotel.hotel_management.invoice.InvoiceStatus;
 import com.hotel.hotel_management.finance.FinanceService;
+import com.hotel.hotel_management.notification.NotificationService;
+import com.hotel.hotel_management.notification.NotificationType;
 import com.hotel.hotel_management.reservation.Reservation;
 import com.hotel.hotel_management.reservation.ReservationRepository;
 import com.hotel.hotel_management.reservation.ReservationStatus;
@@ -20,18 +22,21 @@ public class PaymentService {
     private final InvoiceRepository invoiceRepository;
     private final FinanceService financeService;
     private final ReservationRepository reservationRepository;
+    private final NotificationService notificationService;
 
     @Autowired
     public PaymentService(
             PaymentRepository paymentRepository,
             InvoiceRepository invoiceRepository,
             FinanceService financeService,
-            ReservationRepository reservationRepository) {
+            ReservationRepository reservationRepository,
+            NotificationService notificationService) {
 
         this.paymentRepository = paymentRepository;
         this.invoiceRepository = invoiceRepository;
         this.financeService = financeService;
         this.reservationRepository = reservationRepository;
+        this.notificationService = notificationService;
     }
 
     public PaymentService(
@@ -39,7 +44,7 @@ public class PaymentService {
             InvoiceRepository invoiceRepository,
             FinanceService financeService) {
 
-        this(paymentRepository, invoiceRepository, financeService, null);
+        this(paymentRepository, invoiceRepository, financeService, null, null);
     }
 
     public Payment createPayment(
@@ -117,6 +122,15 @@ public class PaymentService {
         updateInvoiceStatus(invoice.getInvoiceId());
 
         financeService.recordPaymentIncome(savedPayment, performedBy);
+
+        notifyCustomer(
+                savedPayment.getCustomerUid(),
+                NotificationType.PAYMENT,
+                "Payment received",
+                "Your payment of LKR " + formatAmount(savedPayment.getAmount())
+                        + " was received successfully.",
+                "/my-payments",
+                savedPayment.getPaymentId());
 
         return savedPayment;
     }
@@ -200,7 +214,36 @@ public java.util.List<Payment> getAllPayments() {
 
         financeService.recordPaymentRefund(refundedPayment, performedBy);
 
+        notifyCustomer(
+                refundedPayment.getCustomerUid(),
+                NotificationType.PAYMENT,
+                "Refund processed",
+                "Your refund of LKR " + formatAmount(refundedPayment.getAmount())
+                        + " has been processed.",
+                "/my-payments",
+                refundedPayment.getPaymentId());
+
         return refundedPayment;
+    }
+
+    /** Notifications are auxiliary; a null collaborator must not break payment. */
+    private void notifyCustomer(
+            String customerUid,
+            NotificationType type,
+            String title,
+            String message,
+            String link,
+            String referenceId) {
+
+        if (notificationService == null) {
+            return;
+        }
+
+        notificationService.emit(customerUid, type, title, message, link, referenceId);
+    }
+
+    private String formatAmount(Double amount) {
+        return String.format("%,.2f", amount != null ? amount : 0.0);
     }
 
     public void updateInvoiceStatus(String invoiceId) {

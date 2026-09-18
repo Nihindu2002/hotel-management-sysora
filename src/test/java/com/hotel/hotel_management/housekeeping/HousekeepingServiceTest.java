@@ -9,6 +9,8 @@ import com.hotel.hotel_management.staff.Staff;
 import com.hotel.hotel_management.staff.StaffDepartment;
 import com.hotel.hotel_management.staff.StaffRepository;
 import com.hotel.hotel_management.user.UserRepository;
+import com.hotel.hotel_management.notification.NotificationService;
+import com.hotel.hotel_management.notification.NotificationType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -28,6 +30,7 @@ class HousekeepingServiceTest {
     private RoomRepository roomRepository;
     private UserRepository userRepository;
     private StaffRepository staffRepository;
+    private NotificationService notificationService;
     private HousekeepingService housekeepingService;
 
     @BeforeEach
@@ -36,12 +39,14 @@ class HousekeepingServiceTest {
         roomRepository = mock(RoomRepository.class);
         userRepository = mock(UserRepository.class);
         staffRepository = mock(StaffRepository.class);
+        notificationService = mock(NotificationService.class);
 
         housekeepingService = new HousekeepingService(
                 housekeepingRepository,
                 roomRepository,
                 userRepository,
-                staffRepository
+                staffRepository,
+                notificationService
         );
 
         Staff defaultStaff = new Staff();
@@ -126,6 +131,34 @@ class HousekeepingServiceTest {
         assertNotNull(result);
         assertEquals("staff-h-1", result.getAssignedTo());
         assertEquals(HousekeepingTaskStatus.ASSIGNED, result.getStatus());
+    }
+
+    @Test
+    void assignTask_NotifiesTheAssignedStaffMember() {
+        HousekeepingTask task = new HousekeepingTask();
+        task.setTaskId("h-notify");
+        task.setRoomId("room-12");
+        task.setStatus(HousekeepingTaskStatus.PENDING);
+        when(housekeepingRepository.findById("h-notify")).thenReturn(Optional.of(task));
+
+        Staff staff = new Staff();
+        staff.setUserUid("staff-h-notify");
+        staff.setDepartment(StaffDepartment.HOUSEKEEPING);
+        staff.setEmploymentStatus(EmploymentStatus.ACTIVE);
+        when(staffRepository.findByUserUid("staff-h-notify")).thenReturn(Optional.of(staff));
+
+        when(housekeepingRepository.updateAssignment("h-notify", "staff-h-notify", HousekeepingTaskStatus.ASSIGNED))
+                .thenReturn(task);
+
+        housekeepingService.assignTask("h-notify", "staff-h-notify");
+
+        verify(notificationService).emit(
+                eq("staff-h-notify"),
+                eq(NotificationType.HOUSEKEEPING),
+                eq("Housekeeping task assigned"),
+                contains("room-12"),
+                eq("/housekeeping/tasks"),
+                eq("h-notify"));
     }
 
     @Test

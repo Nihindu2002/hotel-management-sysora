@@ -1,10 +1,14 @@
 package com.hotel.hotel_management.inventory;
 
 import com.hotel.hotel_management.finance.FinanceService;
+import com.hotel.hotel_management.notification.NotificationService;
+import com.hotel.hotel_management.notification.NotificationType;
+import com.hotel.hotel_management.user.Role;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -14,15 +18,27 @@ public class InventoryService {
     private final InventoryRepository inventoryRepository;
     private final InventoryTransactionRepository inventoryTransactionRepository;
     private final FinanceService financeService;
+    private final NotificationService notificationService;
 
     public InventoryService(
             InventoryRepository inventoryRepository,
             InventoryTransactionRepository inventoryTransactionRepository,
             FinanceService financeService) {
 
+        this(inventoryRepository, inventoryTransactionRepository, financeService, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public InventoryService(
+            InventoryRepository inventoryRepository,
+            InventoryTransactionRepository inventoryTransactionRepository,
+            FinanceService financeService,
+            NotificationService notificationService) {
+
         this.inventoryRepository = inventoryRepository;
         this.inventoryTransactionRepository = inventoryTransactionRepository;
         this.financeService = financeService;
+        this.notificationService = notificationService;
     }
 
     public InventoryItem createItem(CreateInventoryItemRequest request) {
@@ -177,7 +193,11 @@ public class InventoryService {
         transaction.setNotes(request.notes());
         transaction.setCreatedAt(now);
 
-        return inventoryTransactionRepository.save(transaction);
+        InventoryTransaction savedTransaction = inventoryTransactionRepository.save(transaction);
+
+        notifyIfLowStock(item, previousQuantity, newQuantity);
+
+        return savedTransaction;
     }
 
     public InventoryTransaction adjustStock(InventoryAdjustmentRequest request, String performedBy) {
@@ -212,7 +232,40 @@ public class InventoryService {
         transaction.setNotes(request.reason());
         transaction.setCreatedAt(now);
 
-        return inventoryTransactionRepository.save(transaction);
+        InventoryTransaction savedTransaction = inventoryTransactionRepository.save(transaction);
+
+        notifyIfLowStock(item, previousQuantity, newQuantity);
+
+        return savedTransaction;
+    }
+
+    /**
+     * Alerts admins and managers when a movement takes an item to or below its
+     * minimum stock.
+     *
+     * Deliberately fires only on the downward crossing. Alerting on every
+     * movement while an item sits below its minimum would send a new
+     * notification each time stock is drawn down.
+     */
+    private void notifyIfLowStock(InventoryItem item, double previousQuantity, double newQuantity) {
+        if (notificationService == null) {
+            return;
+        }
+
+        double minimum = item.getMinimumStock() != null ? item.getMinimumStock() : 0.0;
+
+        if (previousQuantity <= minimum || newQuantity > minimum) {
+            return;
+        }
+
+        notificationService.emitToRoles(
+                Set.of(Role.ADMIN, Role.MANAGER),
+                NotificationType.INVENTORY,
+                "Low stock: " + item.getItemName(),
+                item.getItemName() + " has fallen to " + newQuantity
+                        + " (minimum " + minimum + "). Consider reordering.",
+                "/inventory/items/" + item.getItemId(),
+                item.getItemId());
     }
 
     public List<InventoryTransaction> getAllTransactions() {

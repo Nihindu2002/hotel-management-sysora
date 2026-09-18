@@ -5,6 +5,8 @@ import com.hotel.hotel_management.finance.FinanceService;
 import com.hotel.hotel_management.invoice.Invoice;
 import com.hotel.hotel_management.invoice.InvoiceRepository;
 import com.hotel.hotel_management.invoice.InvoiceStatus;
+import com.hotel.hotel_management.notification.NotificationService;
+import com.hotel.hotel_management.notification.NotificationType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -26,6 +28,7 @@ class PaymentServiceTest {
     private InvoiceRepository invoiceRepository;
     private FinanceService financeService;
     private ReservationRepository reservationRepository;
+    private NotificationService notificationService;
     private PaymentService paymentService;
 
     @BeforeEach
@@ -34,7 +37,13 @@ class PaymentServiceTest {
         invoiceRepository = mock(InvoiceRepository.class);
         financeService = mock(FinanceService.class);
         reservationRepository = mock(ReservationRepository.class);
-        paymentService = new PaymentService(paymentRepository, invoiceRepository, financeService, reservationRepository);
+        notificationService = mock(NotificationService.class);
+        paymentService = new PaymentService(
+                paymentRepository,
+                invoiceRepository,
+                financeService,
+                reservationRepository,
+                notificationService);
     }
 
     @Test
@@ -65,6 +74,34 @@ class PaymentServiceTest {
 
         verify(invoiceRepository).updateStatus("inv-1", InvoiceStatus.PARTIALLY_PAID);
         verify(financeService).recordPaymentIncome(payment, "staff-1");
+    }
+
+    @Test
+    void createPayment_NotifiesTheCustomer() {
+        Invoice invoice = new Invoice();
+        invoice.setInvoiceId("inv-n");
+        invoice.setCustomerUid("cust-n");
+        invoice.setReservationId("res-n");
+        invoice.setTotalAmount(5000.0);
+        invoice.setStatus(InvoiceStatus.UNPAID.name());
+
+        when(invoiceRepository.findById("inv-n")).thenReturn(Optional.of(invoice));
+        when(paymentRepository.getTotalPaidForInvoice("inv-n"))
+                .thenReturn(0.0)
+                .thenReturn(5000.0);
+        when(paymentRepository.save(any(Payment.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        Payment payment = paymentService.createPayment(
+                new CreatePaymentRequest("inv-n", 5000.0, PaymentMethod.CARD), "cust-n", "staff-n");
+
+        verify(notificationService).emit(
+                eq("cust-n"),
+                eq(NotificationType.PAYMENT),
+                eq("Payment received"),
+                anyString(),
+                eq("/my-payments"),
+                eq(payment.getPaymentId()));
     }
 
     @Test

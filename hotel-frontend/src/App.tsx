@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import RootRedirect from './routes/RootRedirect';
 import DashboardLayout from './layouts/DashboardLayout';
 import RoleRoute from './routes/RoleRoute';
+import AuthRoute from './routes/AuthRoute';
 
 import AdminDashboard from './pages/admin/AdminDashboard';
 import ManagerDashboard from './pages/manager/ManagerDashboard';
@@ -51,6 +52,9 @@ import CustomerPayments from "./pages/customer/CustomerPayments";
 import CustomerProfile from "./pages/customer/CustomerProfile";
 import CustomerAccount from "./pages/customer/CustomerAccount";
 
+// Notifications (every authenticated role)
+import NotificationsPage from './pages/notifications/NotificationsPage';
+
 // Staff & reservation management
 import StaffReservations from "./pages/staff/StaffReservations";
 import ReservationDetails from "./pages/reservations/ReservationDetails";
@@ -68,6 +72,11 @@ function App() {
         <Route path="/unauthorized" element={<Unauthorized />} />
 
         <Route element={<DashboardLayout />}>
+          {/* Notifications — every signed-in role owns its own mailbox */}
+          <Route element={<AuthRoute />}>
+            <Route path="/notifications" element={<NotificationsPage />} />
+          </Route>
+
           {/* Management dashboard — ADMIN and MANAGER share it */}
           <Route element={<RoleRoute allowedRoles={['ADMIN', 'MANAGER']} />}>
             <Route path="/dashboard" element={<ManagementDashboard />} />

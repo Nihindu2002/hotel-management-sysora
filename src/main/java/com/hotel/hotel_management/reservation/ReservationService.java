@@ -10,6 +10,8 @@ import com.hotel.hotel_management.housekeeping.HousekeepingTaskPriority;
 import com.hotel.hotel_management.housekeeping.HousekeepingTaskStatus;
 import com.hotel.hotel_management.housekeeping.HousekeepingTaskType;
 import com.hotel.hotel_management.invoice.InvoiceService;
+import com.hotel.hotel_management.notification.NotificationService;
+import com.hotel.hotel_management.notification.NotificationType;
 import com.hotel.hotel_management.room.Room;
 import com.hotel.hotel_management.room.RoomRepository;
 import com.hotel.hotel_management.room.RoomStatus;
@@ -28,18 +30,21 @@ public class ReservationService {
     private final RoomRepository roomRepository;
     private final HousekeepingService housekeepingService;
     private final InvoiceService invoiceService;
+    private final NotificationService notificationService;
 
     @Autowired
     public ReservationService(
             ReservationRepository reservationRepository,
             RoomRepository roomRepository,
             HousekeepingService housekeepingService,
-            @Lazy InvoiceService invoiceService) {
+            @Lazy InvoiceService invoiceService,
+            NotificationService notificationService) {
 
         this.reservationRepository = reservationRepository;
         this.roomRepository = roomRepository;
         this.housekeepingService = housekeepingService;
         this.invoiceService = invoiceService;
+        this.notificationService = notificationService;
     }
 
     public ReservationService(
@@ -47,7 +52,17 @@ public class ReservationService {
             RoomRepository roomRepository,
             HousekeepingService housekeepingService) {
 
-        this(reservationRepository, roomRepository, housekeepingService, null);
+        this(reservationRepository, roomRepository, housekeepingService, null, null);
+    }
+
+    /** Test/alternate wiring without notifications. */
+    public ReservationService(
+            ReservationRepository reservationRepository,
+            RoomRepository roomRepository,
+            HousekeepingService housekeepingService,
+            InvoiceService invoiceService) {
+
+        this(reservationRepository, roomRepository, housekeepingService, invoiceService, null);
     }
 
     public Reservation createReservation(
@@ -265,6 +280,18 @@ public class ReservationService {
             } catch (IllegalArgumentException e) {
                 // If invoice already exists, do not fail confirmation
             }
+        }
+
+        if (notificationService != null) {
+            notificationService.emit(
+                    updatedReservation.getCustomerUid(),
+                    NotificationType.RESERVATION,
+                    "Reservation confirmed",
+                    "Your reservation for room " + updatedReservation.getRoomId() + " from "
+                            + updatedReservation.getCheckInDate() + " to "
+                            + updatedReservation.getCheckOutDate() + " is confirmed.",
+                    "/my-reservations",
+                    updatedReservation.getReservationId());
         }
 
         return updatedReservation;

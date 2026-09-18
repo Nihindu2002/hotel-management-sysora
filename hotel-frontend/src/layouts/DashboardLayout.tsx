@@ -3,6 +3,7 @@ import { Outlet, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Sidebar from '../components/Sidebar';
 import NavIcon from '../components/NavIcon';
+import NotificationBell from '../components/NotificationBell';
 
 export default function DashboardLayout() {
   const { user, logout } = useAuth();
@@ -36,6 +37,8 @@ export default function DashboardLayout() {
 
         {/* User / Logout */}
         <div className="flex items-center gap-4">
+          {user && <NotificationBell />}
+
           {user && (
             <div className="hidden text-right sm:block">
               <p className="text-sm font-medium text-gray-800">

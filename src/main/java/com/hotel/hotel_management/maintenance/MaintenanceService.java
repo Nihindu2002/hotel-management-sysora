@@ -4,6 +4,8 @@ import com.hotel.hotel_management.common.ForbiddenException;
 import com.hotel.hotel_management.finance.FinanceService;
 import com.hotel.hotel_management.housekeeping.HousekeepingRepository;
 import com.hotel.hotel_management.housekeeping.HousekeepingTaskStatus;
+import com.hotel.hotel_management.notification.NotificationService;
+import com.hotel.hotel_management.notification.NotificationType;
 import com.hotel.hotel_management.reservation.Reservation;
 import com.hotel.hotel_management.reservation.ReservationRepository;
 import com.hotel.hotel_management.reservation.ReservationStatus;
@@ -34,6 +36,7 @@ public class MaintenanceService {
     private final StaffRepository staffRepository;
     private final FinanceService financeService;
     private final ReservationRepository reservationRepository;
+    private final NotificationService notificationService;
 
     public MaintenanceService(
             MaintenanceRepository maintenanceRepository,
@@ -41,7 +44,7 @@ public class MaintenanceService {
             UserRepository userRepository,
             HousekeepingRepository housekeepingRepository,
             StaffRepository staffRepository) {
-        this(maintenanceRepository, roomRepository, userRepository, housekeepingRepository, staffRepository, null, null);
+        this(maintenanceRepository, roomRepository, userRepository, housekeepingRepository, staffRepository, null, null, null);
     }
 
     public MaintenanceService(
@@ -51,7 +54,7 @@ public class MaintenanceService {
             HousekeepingRepository housekeepingRepository,
             StaffRepository staffRepository,
             FinanceService financeService) {
-        this(maintenanceRepository, roomRepository, userRepository, housekeepingRepository, staffRepository, financeService, null);
+        this(maintenanceRepository, roomRepository, userRepository, housekeepingRepository, staffRepository, financeService, null, null);
     }
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -62,7 +65,8 @@ public class MaintenanceService {
             HousekeepingRepository housekeepingRepository,
             StaffRepository staffRepository,
             FinanceService financeService,
-            ReservationRepository reservationRepository) {
+            ReservationRepository reservationRepository,
+            NotificationService notificationService) {
 
         this.maintenanceRepository = maintenanceRepository;
         this.roomRepository = roomRepository;
@@ -71,6 +75,7 @@ public class MaintenanceService {
         this.staffRepository = staffRepository;
         this.financeService = financeService;
         this.reservationRepository = reservationRepository;
+        this.notificationService = notificationService;
     }
 
     public MaintenanceTask createTask(
@@ -122,10 +127,25 @@ public class MaintenanceService {
             throw new IllegalArgumentException("Staff member must belong to MAINTENANCE department");
         }
 
-        return maintenanceRepository.updateAssignment(
+        MaintenanceTask assigned = maintenanceRepository.updateAssignment(
                 taskId,
                 staffUid,
                 MaintenanceStatus.ASSIGNED);
+
+        if (notificationService != null) {
+            notificationService.emit(
+                    staffUid,
+                    NotificationType.MAINTENANCE,
+                    "Maintenance task assigned",
+                    "You have been assigned a maintenance task for room " + task.getRoomId()
+                            + ": " + (task.getDescription() != null
+                                    ? task.getDescription()
+                                    : task.getIssueType()),
+                    "/maintenance/tasks",
+                    taskId);
+        }
+
+        return assigned;
     }
 
     public MaintenanceTask startTask(String taskId, String staffUid) {

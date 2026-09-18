@@ -5,6 +5,8 @@ import com.hotel.hotel_management.finance.FinanceService;
 import com.hotel.hotel_management.housekeeping.HousekeepingRepository;
 import com.hotel.hotel_management.housekeeping.HousekeepingTask;
 import com.hotel.hotel_management.housekeeping.HousekeepingTaskStatus;
+import com.hotel.hotel_management.notification.NotificationService;
+import com.hotel.hotel_management.notification.NotificationType;
 import com.hotel.hotel_management.reservation.Reservation;
 import com.hotel.hotel_management.reservation.ReservationRepository;
 import com.hotel.hotel_management.reservation.ReservationStatus;
@@ -42,6 +44,7 @@ class MaintenanceServiceTest {
     private StaffRepository staffRepository;
     private FinanceService financeService;
     private ReservationRepository reservationRepository;
+    private NotificationService notificationService;
     private MaintenanceService maintenanceService;
 
     @BeforeEach
@@ -53,6 +56,7 @@ class MaintenanceServiceTest {
         staffRepository = mock(StaffRepository.class);
         financeService = mock(FinanceService.class);
         reservationRepository = mock(ReservationRepository.class);
+        notificationService = mock(NotificationService.class);
 
         maintenanceService = new MaintenanceService(
                 maintenanceRepository,
@@ -61,7 +65,8 @@ class MaintenanceServiceTest {
                 housekeepingRepository,
                 staffRepository,
                 financeService,
-                reservationRepository
+                reservationRepository,
+                notificationService
         );
 
         Staff defaultStaff = new Staff();
@@ -240,6 +245,35 @@ class MaintenanceServiceTest {
         assertNotNull(result);
         assertEquals("staff-m", result.getAssignedTo());
         assertEquals(MaintenanceStatus.ASSIGNED, result.getStatus());
+    }
+
+    @Test
+    void assignTask_NotifiesTheAssignedStaffMember() {
+        MaintenanceTask task = new MaintenanceTask();
+        task.setTaskId("m-notify");
+        task.setRoomId("room-9");
+        task.setDescription("Leaking tap");
+        task.setStatus(MaintenanceStatus.PENDING);
+        when(maintenanceRepository.findById("m-notify")).thenReturn(Optional.of(task));
+
+        Staff staff = new Staff();
+        staff.setUserUid("staff-notify");
+        staff.setDepartment(StaffDepartment.MAINTENANCE);
+        staff.setEmploymentStatus(EmploymentStatus.ACTIVE);
+        when(staffRepository.findByUserUid("staff-notify")).thenReturn(Optional.of(staff));
+
+        when(maintenanceRepository.updateAssignment("m-notify", "staff-notify", MaintenanceStatus.ASSIGNED))
+                .thenReturn(task);
+
+        maintenanceService.assignTask("m-notify", "staff-notify");
+
+        verify(notificationService).emit(
+                eq("staff-notify"),
+                eq(NotificationType.MAINTENANCE),
+                eq("Maintenance task assigned"),
+                contains("room-9"),
+                eq("/maintenance/tasks"),
+                eq("m-notify"));
     }
 
     @Test
