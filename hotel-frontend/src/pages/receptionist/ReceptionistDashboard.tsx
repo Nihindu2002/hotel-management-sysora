@@ -152,7 +152,7 @@ export default function ReceptionistDashboard() {
               <h2 className="text-lg font-bold text-gray-900">Room Availability</h2>
               <p className="text-xs text-gray-500">Current status of every room</p>
             </div>
-            <Link to="/rooms" className="text-xs font-semibold text-indigo-600 hover:text-indigo-800">
+            <Link to="/receptionist/rooms" className="text-xs font-semibold text-indigo-600 hover:text-indigo-800">
               View rooms →
             </Link>
           </div>

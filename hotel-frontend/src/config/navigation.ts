@@ -42,19 +42,16 @@ export const NAVIGATION_ITEMS: NavItem[] = [
     icon: 'dashboard',
     allowedRoles: ['ACCOUNTANT'],
   },
-  {
-    label: 'Dashboard',
-    path: '/customer',
-    icon: 'dashboard',
-    allowedRoles: ['CUSTOMER'],
-  },
+  // CUSTOMER has no entries here on purpose: customers never render inside
+  // DashboardLayout. Their pages live in the LUMI site (see pages/site) and are
+  // navigated by the account sub-nav in pages/site/components/AccountLayout.
 
   // ── Operations & Front Desk ──
   {
     label: 'Rooms',
-    path: '/rooms',
+    path: '/receptionist/rooms',
     icon: 'rooms',
-    allowedRoles: ['RECEPTIONIST', 'CUSTOMER'],
+    allowedRoles: ['RECEPTIONIST'],
   },
   {
     label: 'Manage Rooms',
@@ -74,12 +71,6 @@ export const NAVIGATION_ITEMS: NavItem[] = [
     icon: 'reservations',
     allowedRoles: ['ADMIN', 'MANAGER', 'RECEPTIONIST'],
   },
-  {
-    label: 'My Reservations',
-    path: '/my-reservations',
-    icon: 'reservations',
-    allowedRoles: ['CUSTOMER'],
-  },
 
   // ── Billing & Finance ──
   {
@@ -89,22 +80,10 @@ export const NAVIGATION_ITEMS: NavItem[] = [
     allowedRoles: ['ADMIN', 'RECEPTIONIST', 'ACCOUNTANT'],
   },
   {
-    label: 'My Invoices',
-    path: '/my-invoices',
-    icon: 'invoices',
-    allowedRoles: ['CUSTOMER'],
-  },
-  {
     label: 'Payments',
     path: '/payments',
     icon: 'payments',
     allowedRoles: ['ADMIN', 'RECEPTIONIST', 'ACCOUNTANT'],
-  },
-  {
-    label: 'My Payments',
-    path: '/my-payments',
-    icon: 'payments',
-    allowedRoles: ['CUSTOMER'],
   },
 
   // ── Facilities & Operations ──
@@ -153,20 +132,6 @@ export const NAVIGATION_ITEMS: NavItem[] = [
     path: '/admin/users',
     icon: 'users',
     allowedRoles: ['ADMIN'],
-  },
-
-  // ── Customer Profile ──
-  {
-    label: 'My Profile',
-    path: '/customer/profile',
-    icon: 'profile',
-    allowedRoles: ['CUSTOMER'],
-  },
-  {
-    label: 'My Account',
-    path: '/customer/account',
-    icon: 'account',
-    allowedRoles: ['CUSTOMER'],
   },
 ];
 

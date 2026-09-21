@@ -365,7 +365,7 @@ export default function StaffReservations() {
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <Link
-                          to={`/reservations/${res.reservationId}`}
+                          to={`/staff/reservations/${res.reservationId}`}
                           className="text-xs font-mono text-indigo-600 hover:text-indigo-800 break-all block font-medium"
                         >
                           {res.reservationId}
@@ -441,7 +441,7 @@ export default function StaffReservations() {
                         : 'Cancel'}
                     </button>
                     <Link
-                      to={`/reservations/${res.reservationId}`}
+                      to={`/staff/reservations/${res.reservationId}`}
                       className="rounded-md border border-gray-300 bg-white px-2.5 py-2 text-center text-xs font-semibold text-gray-700 hover:bg-gray-50 transition"
                       title="View Details"
                     >
@@ -550,7 +550,7 @@ export default function StaffReservations() {
                       <tr key={res.reservationId} className="hover:bg-gray-50 transition">
                         <td className="px-4 py-3 font-mono font-medium text-gray-900 break-all">
                           <Link
-                            to={`/reservations/${res.reservationId}`}
+                            to={`/staff/reservations/${res.reservationId}`}
                             className="text-indigo-600 hover:text-indigo-900 font-semibold"
                           >
                             {res.reservationId}
@@ -697,7 +697,7 @@ export default function StaffReservations() {
 
                             {/* Details Link */}
                             <Link
-                              to={`/reservations/${res.reservationId}`}
+                              to={`/staff/reservations/${res.reservationId}`}
                               className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-100 transition"
                             >
                               Details

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { getRoleRedirectPath } from '../../utils/roleRedirect';
+import { getPostLoginPath } from '../../utils/roleRedirect';
 import { loginRules, type LoginFormValues } from '../../schemas/authSchemas';
 
 export default function Login() {
@@ -16,18 +16,20 @@ export default function Login() {
     formState: { errors, isSubmitting },
   } = useForm<LoginFormValues>({ mode: 'onTouched' });
 
-  // If already authenticated, redirect to role-based dashboard
+  // Already signed in: customers belong on the LUMI site, staff on their
+  // dashboard — never back through the login form.
   if (!loading && user) {
-    return <Navigate to={getRoleRedirectPath(user.role)} replace />;
+    return <Navigate to={getPostLoginPath(user.role)} replace />;
   }
 
   const onSubmit = async (data: LoginFormValues) => {
     setApiError('');
 
     try {
+      // The role drives where we land, so read it off the profile this call
+      // returns rather than the `user` state, which has not re-rendered yet.
       const profile = await login(data.email, data.password);
-      const redirectPath = getRoleRedirectPath(profile.role);
-      navigate(redirectPath, { replace: true });
+      navigate(getPostLoginPath(profile?.role), { replace: true });
     } catch (err: unknown) {
       if (err instanceof Error) {
         if (err.message.includes('auth/')) {

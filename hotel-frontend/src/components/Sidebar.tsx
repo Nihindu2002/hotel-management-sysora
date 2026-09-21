@@ -35,15 +35,27 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
               to={item.path}
               onClick={onClose}
               className={({ isActive }) =>
-                `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                `relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                   isActive
-                    ? 'bg-indigo-50 text-indigo-700 font-semibold'
+                    ? 'bg-royal/5 text-royal font-semibold'
                     : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                 }`
               }
             >
-              <NavIcon name={item.icon} className="h-5 w-5 shrink-0" />
-              <span className="truncate">{item.label}</span>
+              {/* The gold marker is the accent's job here: a bar rather than
+                  gold type, which would not hold contrast at this size. */}
+              {({ isActive }) => (
+                <>
+                  {isActive && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-gold"
+                    />
+                  )}
+                  <NavIcon name={item.icon} className="h-5 w-5 shrink-0" />
+                  <span className="truncate">{item.label}</span>
+                </>
+              )}
             </NavLink>
           ))}
         </nav>
@@ -57,7 +69,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
               {user.firstName ? `${user.firstName} ${user.lastName}` : user.email}
             </p>
             <div className="mt-1 flex items-center gap-2">
-              <span className="inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-800">
+              <span className="inline-flex items-center rounded-full bg-gold/15 px-2 py-0.5 text-xs font-medium text-navy">
                 {user.role}
               </span>
               <span className="truncate text-xs text-gray-500">{user.email}</span>

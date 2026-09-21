@@ -85,7 +85,7 @@ export default function Rooms() {
                 </p>
 
                 <Link
-                  to={`/rooms/${room.roomId}`}
+                  to={`/receptionist/rooms/${room.roomId}`}
                   className="mt-4 block rounded bg-blue-600 px-4 py-2 text-center text-white hover:bg-blue-700"
                 >
                   View Room

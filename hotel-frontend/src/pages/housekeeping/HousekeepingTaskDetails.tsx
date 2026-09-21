@@ -361,7 +361,7 @@ export default function HousekeepingTaskDetails() {
             <h2 className="text-base font-bold text-gray-900">Room Details</h2>
             {room && (
               <Link
-                to={`/rooms/${room.roomId}`}
+                to={`/staff/rooms/${room.roomId}`}
                 className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
               >
                 View Room →

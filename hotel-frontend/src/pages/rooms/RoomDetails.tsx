@@ -37,7 +37,7 @@ export default function RoomDetails() {
   return (
     <div className="max-w-4xl">
       <Link
-        to="/rooms"
+        to="/receptionist/rooms"
         className="mb-6 inline-block text-blue-600"
       >
         ← Back to rooms

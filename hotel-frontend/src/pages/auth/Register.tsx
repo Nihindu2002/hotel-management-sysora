@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { getRoleRedirectPath } from '../../utils/roleRedirect';
+import { getPostLoginPath } from '../../utils/roleRedirect';
 import {
   registerRules,
   type RegisterFormValues,
@@ -20,9 +20,9 @@ export default function Register() {
     formState: { errors, isSubmitting },
   } = useForm<RegisterFormValues>({ mode: 'onTouched' });
 
-  // If already authenticated, redirect to dashboard
+  // If already authenticated, send them where their role belongs.
   if (!loading && user) {
-    return <Navigate to={getRoleRedirectPath(user.role)} replace />;
+    return <Navigate to={getPostLoginPath(user.role)} replace />;
   }
 
   const onSubmit = async (data: RegisterFormValues) => {

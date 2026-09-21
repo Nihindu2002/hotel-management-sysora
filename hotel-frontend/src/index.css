@@ -1,1 +1,114 @@
 @import "tailwindcss";
+
+/* ── Brand palette ─────────────────────────────────────────────────────────
+   Deep Navy is the workhorse: headings, body type and solid buttons. Royal
+   Blue carries interaction — links, focus rings, hover states. Champagne Gold
+   is the accent, kept for small marks of emphasis (eyebrows, prices, active
+   markers) and never for body copy, where at #D4AF37 on a light surface it
+   would sit at about 2.2:1 and fail the readable contrast minimum.
+   ────────────────────────────────────────────────────────────────────────── */
+@theme {
+  /* Brand */
+  --color-navy: #0f172a;   /* Primary   — headings, body type, solid buttons */
+  --color-royal: #1e3a8a;  /* Secondary — links, focus, hover                */
+  --color-gold: #d4af37;   /* Accent    — eyebrows, prices, active markers   */
+
+  /* Surfaces */
+  --color-surface: #f8fafc; /* Background */
+  --color-card: #ffffff;    /* Cards, inputs, raised surfaces */
+
+  /* Type */
+  --color-ink: #1e293b;    /* Main text */
+  --color-muted: #64748b;  /* Secondary text */
+  --color-line: #e2e8f0;   /* Hairline borders and dividers */
+
+  /* Status */
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+
+  /* ── Text-safe variants ──────────────────────────────────────────────────
+     The four colours above are fill colours. At full saturation they land
+     between 2.0:1 and 3.8:1 on a light surface — under the 4.5:1 readable
+     minimum, and near-invisible at the 10px tracked uppercase the site uses
+     for its labels. These are the same hues carried darker, so the accent and
+     the status colours stay recognisable while the words stay legible.
+
+     Rule of thumb: reach for the originals for fills, bars, borders and tints,
+     and for anything sitting on navy. Reach for these wherever the colour
+     carries text. */
+  --color-gold-ink: #8a6a12;    /* 4.8:1 on surface, 5.1:1 on card */
+  --color-success-ink: #047857; /* 5.2:1 */
+  --color-danger-ink: #b91c1c;  /* 6.2:1 — also the fill for white-on-red */
+  --color-warning-ink: #b45309; /* 4.8:1 */
+
+  /* ── Compatibility ramps ─────────────────────────────────────────────────
+     The staff screens were built on Tailwind's stock neutrals and indigo,
+     which are a different grey and a different blue to the palette above.
+     Remapping those two ramps here snaps every existing `bg-gray-50`,
+     `text-indigo-600` and friends onto the palette in one place, instead of
+     editing a few thousand class names across the dashboard files.
+
+     Values are written out rather than referencing `--color-slate-*` so the
+     mapping stays legible and does not depend on evaluation order.
+
+     New work should reach for the semantic tokens above; these exist so the
+     screens that predate them already match. */
+  --color-gray-50: #f8fafc;
+  --color-gray-100: #f1f5f9;
+  --color-gray-200: #e2e8f0;
+  --color-gray-300: #cbd5e1;
+  --color-gray-400: #94a3b8;
+  --color-gray-500: #64748b;
+  --color-gray-600: #475569;
+  --color-gray-700: #334155;
+  --color-gray-800: #1e293b;
+  --color-gray-900: #0f172a;
+  --color-gray-950: #020617;
+
+  --color-indigo-50: #eff6ff;
+  --color-indigo-100: #dbeafe;
+  --color-indigo-200: #bfdbfe;
+  --color-indigo-300: #93c5fd;
+  --color-indigo-400: #60a5fa;
+  --color-indigo-500: #1d4ed8;
+  --color-indigo-600: #1e40af;
+  --color-indigo-700: #1e3a8a;
+  --color-indigo-800: #1e3a8a;
+  --color-indigo-900: #172554;
+  --color-indigo-950: #172554;
+
+  --font-sans: "Inter", "Manrope", "Helvetica Neue", Helvetica, Arial,
+    system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-surface);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Honour the OS "reduce motion" setting: scroll reveals and hover image zooms
+   are decorative, so collapse them to instant state changes rather than
+   removing the content they animate in. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Outlet, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { getRoleRedirectPath } from '../utils/roleRedirect';
 import Sidebar from '../components/Sidebar';
 import NavIcon from '../components/NavIcon';
 import NotificationBell from '../components/NotificationBell';
@@ -30,8 +31,13 @@ export default function DashboardLayout() {
             <NavIcon name="menu" className="h-6 w-6" />
           </button>
 
-          <Link to="/" className="flex items-center gap-2 text-xl font-bold tracking-tight text-gray-900">
-            <span className="text-indigo-600">★</span> Hotel Management
+          {/* The logo means "home", and home inside the app is the signed-in
+              user's own dashboard — not the public landing page at "/". */}
+          <Link
+            to={user ? getRoleRedirectPath(user.role) : '/'}
+            className="flex items-center gap-2 text-xl font-bold tracking-tight text-gray-900"
+          >
+            <span className="text-gold-ink">★</span> Hotel Management
           </Link>
         </div>
 
