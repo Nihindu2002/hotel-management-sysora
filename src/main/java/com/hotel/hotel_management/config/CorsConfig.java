@@ -21,6 +21,12 @@ public class CorsConfig {
                 "Authorization", "Content-Type"));
         configuration.setAllowCredentials(true);
 
+        // Without this, Spring never writes Access-Control-Max-Age, so the
+        // browser caches no preflight and every authenticated call costs an
+        // extra OPTIONS round trip before the real request. An hour is safe:
+        // the allowed origin/methods/headers only change on a redeploy.
+        configuration.setMaxAge(3600L);
+
         UrlBasedCorsConfigurationSource source =
                 new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/**", configuration);

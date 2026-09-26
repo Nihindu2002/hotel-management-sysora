@@ -23,6 +23,7 @@ import {
   nightsBetween,
   roomTypeLabel,
 } from '../../../utils/siteFormat';
+import { roomImageSrcSet, roomImageUrl } from '../../../utils/roomImage';
 
 /**
  * A guest's view of one reservation.
@@ -52,13 +53,24 @@ export default function BookingDetail() {
 
     let ignore = false;
 
+    // The invoice is keyed by reservationId, which we already have, so fire it
+    // alongside the reservation rather than nesting it inside the response
+    // handler where it cost a whole extra round trip.
+    getInvoiceByReservationId(reservationId)
+      .then((fetched) => {
+        if (!ignore) setInvoice(fetched);
+      })
+      .catch(() => {
+        if (!ignore) setInvoice(null);
+      });
+
     getReservationById(reservationId)
       .then((loaded) => {
         if (ignore) return;
         setReservation(loaded);
 
-        // Room and invoice are supporting detail: a failure in either should
-        // not blank the page.
+        // The room genuinely needs loaded.roomId, so this hop stays nested.
+        // It is supporting detail: a failure should not blank the page.
         if (loaded.roomId) {
           getRoomById(loaded.roomId)
             .then((fetched) => {
@@ -68,14 +80,6 @@ export default function BookingDetail() {
               if (!ignore) setRoom(null);
             });
         }
-
-        getInvoiceByReservationId(reservationId)
-          .then((fetched) => {
-            if (!ignore) setInvoice(fetched);
-          })
-          .catch(() => {
-            if (!ignore) setInvoice(null);
-          });
       })
       .catch((err: any) => {
         if (ignore) return;
@@ -214,7 +218,9 @@ export default function BookingDetail() {
               <div className="mt-4 border border-line">
                 {room.images?.length > 0 && (
                   <img
-                    src={room.images[0]}
+                    src={roomImageUrl(room.images[0], 1440, '16:9')}
+                    srcSet={roomImageSrcSet(room.images[0], [640, 1080, 1440], '16:9')}
+                    sizes="(min-width: 768px) 60vw, 100vw"
                     alt={`Room ${room.roomNumber}`}
                     className="aspect-[16/9] w-full object-cover"
                   />

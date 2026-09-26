@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getRooms } from "../../services/roomService";
 import type { Room } from "../../types/room";
+import { roomImageSrcSet, roomImageUrl } from "../../utils/roomImage";
 
 export default function Rooms() {
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -51,8 +52,12 @@ export default function Rooms() {
             >
               {room.images?.length > 0 ? (
                 <img
-                  src={room.images[0]}
+                  src={roomImageUrl(room.images[0], 1080, '16:9')}
+                  srcSet={roomImageSrcSet(room.images[0], [480, 720, 1080], '16:9')}
+                  sizes="(min-width: 1024px) 30vw, (min-width: 640px) 45vw, 90vw"
                   alt={`Room ${room.roomNumber}`}
+                  loading="lazy"
+                  decoding="async"
                   className="h-48 w-full object-cover"
                 />
               ) : (

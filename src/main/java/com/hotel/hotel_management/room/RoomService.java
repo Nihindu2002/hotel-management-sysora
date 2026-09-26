@@ -63,7 +63,9 @@ public class RoomService {
             throw new ConflictException("Room already exists");
         }
 
-        return roomRepository.save(room);
+        Room saved = roomRepository.save(room);
+        roomRepository.clearCache();
+        return saved;
     }
 
     public Room updateRoom(String roomId, Room room) {
@@ -85,7 +87,9 @@ public class RoomService {
                     "Price per night must be greater than or equal to 0");
         }
 
-        return roomRepository.updateRoom(roomId, room);
+        Room updated = roomRepository.updateRoom(roomId, room);
+        roomRepository.clearCache();
+        return updated;
     }
 
     public Room updateRoomStatus(String roomId, RoomStatus status) {
@@ -98,7 +102,9 @@ public class RoomService {
         throw new ResourceNotFoundException("Room not found");
     }
 
-    return roomRepository.updateStatus(roomId, status);
+    Room updated = roomRepository.updateStatus(roomId, status);
+    roomRepository.clearCache();
+    return updated;
     }
 
     public Room addRoomImage(
@@ -118,7 +124,9 @@ public class RoomService {
 
         images.add(imageUrl);
 
-        return roomRepository.updateImages(roomId, images);
+        Room updated = roomRepository.updateImages(roomId, images);
+    roomRepository.clearCache();
+    return updated;
     }
 
     public Room deleteRoomImage(
@@ -140,7 +148,9 @@ public class RoomService {
 
     roomImageService.deleteImage(imageUrl);
 
-    return roomRepository.updateImages(roomId, images);
+    Room updated = roomRepository.updateImages(roomId, images);
+    roomRepository.clearCache();
+    return updated;
 }
 
 }

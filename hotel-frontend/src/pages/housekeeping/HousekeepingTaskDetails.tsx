@@ -110,13 +110,15 @@ export default function HousekeepingTaskDetails() {
         if (found) setAssignedStaff(found);
       }
 
-      // Fetch Room
-      try {
-        const roomData = await getRoomById(taskData.roomId);
-        setRoom(roomData);
-      } catch {
-        // Room may not load if non-admin/manager
-      }
+      // Room only needs taskData.roomId and is supporting detail, so it runs
+      // alongside the staff merge below rather than after it — the merge is
+      // synchronous, so awaiting here was a pure extra round trip on the
+      // page's critical path.
+      getRoomById(taskData.roomId)
+        .then(setRoom)
+        .catch(() => {
+          // Room may not load if non-admin/manager
+        });
     } catch {
       setError('Housekeeping task not found or failed to load.');
     } finally {

@@ -74,7 +74,7 @@ Copy the response `idToken` value. Do not use the service-account private key as
 ## C. Authenticated request
 
 ```http
-GET http://localhost:8080/api/secure-test
+GET http://localhost:8080/api/users/me
 Authorization: Bearer FIREBASE_ID_TOKEN
 ```
 
@@ -318,12 +318,14 @@ A customer receives HTTP 403 because the Firestore profile role is `CUSTOMER`, n
 
 - `GET /api/test` is public.
 - `POST /api/auth/register` is public.
-- Every other route, including `/api/firebase-test`, requires a valid Firebase ID token.
+- Every other route requires a valid Firebase ID token.
+- Read-only room browsing (`GET /api/rooms`, `GET /api/rooms/{id}`) and the
+  booking search (`GET /api/reservations/availability`) are public.
 
 ## Useful checks
 
 ```bash
 ./mvnw test
 curl http://localhost:8080/api/test
-curl -i http://localhost:8080/api/secure-test
+curl -i http://localhost:8080/api/users/me
 ```

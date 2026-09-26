@@ -82,11 +82,9 @@ class OpenApiConfigTest {
     @Test
     void testInternalTestControllersAreHidden() {
         List<Class<?>> testControllers = List.of(
-                FirestoreTestController.class,
                 TestController.class,
                 AdminTestController.class,
                 RbacTestController.class,
-                SecureTestController.class,
                 SecurityTestController.class
         );
 

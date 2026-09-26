@@ -15,10 +15,12 @@
 const UPLOAD_MARKER = '/image/upload/';
 
 /**
- * Room photos are shot landscape, so the card crops to 4:3 and asks Cloudinary
- * for the same ratio. Matching the two means the browser does not have to
- * re-crop an already-cropped image, which is what made the old 4/5 cards look
- * like someone had zoomed in on the middle of the frame.
+ * Room photos are shot landscape, so the listing card crops to 4:3 and asks
+ * Cloudinary for the same ratio. Matching the two means the browser does not
+ * have to re-crop an already-cropped image, which is what made the old 4/5
+ * cards look like someone had zoomed in on the middle of the frame.
+ *
+ * Other call sites pass the ratio of their own box — see `aspect` below.
  */
 const CARD_ASPECT = '4:3';
 
@@ -33,13 +35,19 @@ function isCloudinaryUpload(url: string): boolean {
  * picks as the subject — usually the bed or the window — instead of the centre.
  * `f_auto` and `q_auto` serve WebP or AVIF at a quality that suits the format,
  * so the same visual sharpness arrives in a fraction of the bytes.
+ *
+ * `aspect` should match the CSS box the image lands in (`4:3`, `16:9`, ...).
+ * Asking for a ratio the element does not use makes the browser crop an
+ * already-cropped image a second time, which is what the old cards suffered.
  */
-export function roomImageUrl(url: string, width: number): string {
+export function roomImageUrl(
+  url: string,
+  width: number,
+  aspect: string = CARD_ASPECT,
+): string {
   if (!isCloudinaryUpload(url)) return url;
 
-  const transform = ['f_auto', 'q_auto', 'c_fill', 'g_auto', `ar_${CARD_ASPECT}`, `w_${width}`].join(
-    ',',
-  );
+  const transform = ['f_auto', 'q_auto', 'c_fill', 'g_auto', `ar_${aspect}`, `w_${width}`].join(',');
 
   return url.replace(UPLOAD_MARKER, `${UPLOAD_MARKER}${transform}/`);
 }
@@ -51,8 +59,12 @@ export function roomImageUrl(url: string, width: number): string {
  * Returns `undefined` when the source is not on Cloudinary: with no variants to
  * offer, the plain `src` is the only correct answer.
  */
-export function roomImageSrcSet(url: string, widths: number[]): string | undefined {
+export function roomImageSrcSet(
+  url: string,
+  widths: number[],
+  aspect: string = CARD_ASPECT,
+): string | undefined {
   if (!isCloudinaryUpload(url)) return undefined;
 
-  return widths.map((width) => `${roomImageUrl(url, width)} ${width}w`).join(', ');
+  return widths.map((width) => `${roomImageUrl(url, width, aspect)} ${width}w`).join(', ');
 }

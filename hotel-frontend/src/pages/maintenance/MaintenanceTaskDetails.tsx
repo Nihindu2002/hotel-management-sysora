@@ -59,7 +59,14 @@ export default function MaintenanceTaskDetails() {
       const data = await getTaskById(taskId);
       setTask(data);
       setCostDraft(data.actualCost != null ? String(data.actualCost) : '');
-      setRoom(await getRoomById(data.roomId).catch(() => null));
+
+      // The room lookup needs data.roomId, so it cannot join the await above —
+      // but the task is the page content and the room is a detail, so render
+      // the task now and fill the room in when it lands rather than holding
+      // the spinner for a second round trip.
+      getRoomById(data.roomId)
+        .then(setRoom)
+        .catch(() => setRoom(null));
     } catch (err: any) {
       setError(err?.response?.data?.message || 'Failed to load maintenance task.');
     } finally {

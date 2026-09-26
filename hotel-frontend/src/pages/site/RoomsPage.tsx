@@ -1,40 +1,13 @@
-import { useEffect, useState } from 'react';
 import Reveal from '../../components/site/Reveal';
 import RoomCard from '../../components/site/RoomCard';
-import { getRooms } from '../../services/roomService';
-import type { Room } from '../../types/room';
+import { useRooms } from '../../hooks/useRooms';
 
 /**
  * Public room listing. Reached from the landing page's "View rooms" and
  * "Choose your room" cards, and needs no sign-in.
  */
 export default function RoomsPage() {
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    let ignore = false;
-
-    getRooms()
-      .then((data) => {
-        if (!ignore) setRooms(data ?? []);
-      })
-      .catch((err: any) => {
-        if (!ignore) {
-          setError(
-            err?.response?.data?.message || 'We could not load our rooms just now.',
-          );
-        }
-      })
-      .finally(() => {
-        if (!ignore) setLoading(false);
-      });
-
-    return () => {
-      ignore = true;
-    };
-  }, []);
+  const { rooms, loading, error } = useRooms();
 
   // A room under maintenance is not something to advertise on the public site.
   const bookable = rooms.filter((room) => room.status !== 'MAINTENANCE');

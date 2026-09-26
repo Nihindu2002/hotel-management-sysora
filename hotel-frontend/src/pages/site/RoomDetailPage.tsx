@@ -4,6 +4,10 @@ import SiteLink from '../../components/site/SiteLink';
 import { getRoomById } from '../../services/roomService';
 import type { Room } from '../../types/room';
 import { formatMoney, roomTypeLabel } from '../../utils/siteFormat';
+import { roomImageSrcSet, roomImageUrl } from '../../utils/roomImage';
+
+/** The gallery hero: 4:3 on phones, 21:9 from md up. */
+const HERO_ASPECT = '16:9';
 
 /** Public room detail. Booking hands off to /book with the room preselected. */
 export default function RoomDetailPage() {
@@ -67,7 +71,9 @@ export default function RoomDetailPage() {
       {room.images?.length > 0 && (
         <div className="mb-12 overflow-hidden md:mb-16">
           <img
-            src={room.images[0]}
+            src={roomImageUrl(room.images[0], 1600, HERO_ASPECT)}
+            srcSet={roomImageSrcSet(room.images[0], [640, 1024, 1600, 2000], HERO_ASPECT)}
+            sizes="100vw"
             alt={`Room ${room.roomNumber}`}
             className="aspect-[4/3] w-full object-cover md:aspect-[21/9]"
           />
@@ -101,9 +107,12 @@ export default function RoomDetailPage() {
                 {room.images.slice(1).map((image) => (
                   <img
                     key={image}
-                    src={image}
+                    src={roomImageUrl(image, 1080)}
+                    srcSet={roomImageSrcSet(image, [480, 720, 1080])}
+                    sizes="(min-width: 640px) 40vw, 90vw"
                     alt={`Room ${room.roomNumber}`}
                     loading="lazy"
+                    decoding="async"
                     className="aspect-[4/3] w-full object-cover"
                   />
                 ))}

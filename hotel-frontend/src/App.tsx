@@ -1,3 +1,4 @@
+import { lazy } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom';
 import DashboardLayout from './layouts/DashboardLayout';
 import SiteLayout from './layouts/SiteLayout';
@@ -5,36 +6,17 @@ import RoleRoute from './routes/RoleRoute';
 import AuthRoute from './routes/AuthRoute';
 import CustomerRoute from './routes/CustomerRoute';
 
-import AdminDashboard from './pages/admin/AdminDashboard';
-import ManagerDashboard from './pages/manager/ManagerDashboard';
-import ReceptionistDashboard from './pages/receptionist/ReceptionistDashboard';
-import HousekeepingDashboard from './pages/housekeeping/HousekeepingDashboard';
-import HousekeepingTasks from './pages/housekeeping/HousekeepingTasks';
-import HousekeepingTaskDetails from './pages/housekeeping/HousekeepingTaskDetails';
-import HousekeepingTaskCreate from './pages/housekeeping/HousekeepingTaskCreate';
-import MaintenanceDashboard from './pages/maintenance/MaintenanceDashboard';
-import MaintenanceTasks from './pages/maintenance/MaintenanceTasks';
-import MaintenanceTaskDetails from './pages/maintenance/MaintenanceTaskDetails';
-import MaintenanceTaskCreate from './pages/maintenance/MaintenanceTaskCreate';
-import InventoryDashboardPage from './pages/inventory/InventoryDashboardPage';
-import InventoryItems from './pages/inventory/InventoryItems';
-import InventoryItemDetails from './pages/inventory/InventoryItemDetails';
-import AccountantDashboard from './pages/accountant/AccountantDashboard';
-import ManagementDashboard from './pages/dashboard/ManagementDashboard';
-import ReportsOverview from './pages/reports/ReportsOverview';
-import RevenueReport from './pages/reports/RevenueReport';
-import OccupancyReport from './pages/reports/OccupancyReport';
-import ExpenseReport from './pages/reports/ExpenseReport';
-import FinanceDashboard from './pages/finance/FinanceDashboard';
-import FinanceTransactions from './pages/finance/FinanceTransactions';
-import FinanceTransactionDetails from './pages/finance/FinanceTransactionDetails';
+// ── Eagerly bundled: the customer-facing site and the auth screens ──
+//
+// These are what a guest reaches first, so they ship in the entry chunk and
+// never trigger a loading fallback. Everything behind the staff dashboard is
+// split out below — a signed-out visitor on "/" has no reason to download the
+// inventory ledger or the reporting charts.
+import Login from './pages/auth/Login';
+import Register from './pages/auth/Register';
 import Unauthorized from './pages/Unauthorized';
 import PlaceholderPage from './pages/PlaceholderPage';
 
-import Login from './pages/auth/Login';
-import Register from './pages/auth/Register';
-
-// ── Public + customer LUMI site ──
 import LandingPage from './pages/landing/LandingPage';
 import RoomsPage from './pages/site/RoomsPage';
 import RoomDetailPage from './pages/site/RoomDetailPage';
@@ -52,21 +34,45 @@ import AccountProfile from './pages/site/account/AccountProfile';
 import AccountSettings from './pages/site/account/AccountSettings';
 import AccountNotifications from './pages/site/account/AccountNotifications';
 
-// ── Staff: rooms and reservations ──
-import Rooms from './pages/rooms/Rooms';
-import RoomDetails from './pages/rooms/RoomDetails';
-import AdminRooms from './pages/rooms/AdminRooms';
-import AdminRoomDetails from './pages/rooms/AdminRoomDetails';
-import AdminRoomCreate from './pages/rooms/AdminRoomCreate';
-import AdminRoomEdit from './pages/rooms/AdminRoomEdit';
-import StaffReservations from './pages/staff/StaffReservations';
-import ReservationDetails from './pages/reservations/ReservationDetails';
-
-// Notifications (every authenticated role)
-import NotificationsPage from './pages/notifications/NotificationsPage';
-
-// User management (Admin only)
-import AdminUserList from './pages/admin/AdminUserList';
+// ── Split out: the staff dashboard ──
+//
+// Reports are the reason this matters most. `recharts` is around a third of
+// the gzipped bundle and is imported only by the two chart components the
+// report pages use, so keeping those two pages lazy keeps the charting library
+// out of every other visitor's download.
+const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
+const ManagerDashboard = lazy(() => import('./pages/manager/ManagerDashboard'));
+const ReceptionistDashboard = lazy(() => import('./pages/receptionist/ReceptionistDashboard'));
+const HousekeepingDashboard = lazy(() => import('./pages/housekeeping/HousekeepingDashboard'));
+const HousekeepingTasks = lazy(() => import('./pages/housekeeping/HousekeepingTasks'));
+const HousekeepingTaskDetails = lazy(() => import('./pages/housekeeping/HousekeepingTaskDetails'));
+const HousekeepingTaskCreate = lazy(() => import('./pages/housekeeping/HousekeepingTaskCreate'));
+const MaintenanceDashboard = lazy(() => import('./pages/maintenance/MaintenanceDashboard'));
+const MaintenanceTasks = lazy(() => import('./pages/maintenance/MaintenanceTasks'));
+const MaintenanceTaskDetails = lazy(() => import('./pages/maintenance/MaintenanceTaskDetails'));
+const MaintenanceTaskCreate = lazy(() => import('./pages/maintenance/MaintenanceTaskCreate'));
+const InventoryDashboardPage = lazy(() => import('./pages/inventory/InventoryDashboardPage'));
+const InventoryItems = lazy(() => import('./pages/inventory/InventoryItems'));
+const InventoryItemDetails = lazy(() => import('./pages/inventory/InventoryItemDetails'));
+const AccountantDashboard = lazy(() => import('./pages/accountant/AccountantDashboard'));
+const ManagementDashboard = lazy(() => import('./pages/dashboard/ManagementDashboard'));
+const ReportsOverview = lazy(() => import('./pages/reports/ReportsOverview'));
+const RevenueReport = lazy(() => import('./pages/reports/RevenueReport'));
+const OccupancyReport = lazy(() => import('./pages/reports/OccupancyReport'));
+const ExpenseReport = lazy(() => import('./pages/reports/ExpenseReport'));
+const FinanceDashboard = lazy(() => import('./pages/finance/FinanceDashboard'));
+const FinanceTransactions = lazy(() => import('./pages/finance/FinanceTransactions'));
+const FinanceTransactionDetails = lazy(() => import('./pages/finance/FinanceTransactionDetails'));
+const Rooms = lazy(() => import('./pages/rooms/Rooms'));
+const RoomDetails = lazy(() => import('./pages/rooms/RoomDetails'));
+const AdminRooms = lazy(() => import('./pages/rooms/AdminRooms'));
+const AdminRoomDetails = lazy(() => import('./pages/rooms/AdminRoomDetails'));
+const AdminRoomCreate = lazy(() => import('./pages/rooms/AdminRoomCreate'));
+const AdminRoomEdit = lazy(() => import('./pages/rooms/AdminRoomEdit'));
+const StaffReservations = lazy(() => import('./pages/staff/StaffReservations'));
+const ReservationDetails = lazy(() => import('./pages/reservations/ReservationDetails'));
+const NotificationsPage = lazy(() => import('./pages/notifications/NotificationsPage'));
+const AdminUserList = lazy(() => import('./pages/admin/AdminUserList'));
 
 function App() {
   return (

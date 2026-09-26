@@ -55,20 +55,20 @@ export default function HousekeepingDashboard() {
 
   const loadData = useCallback(async () => {
     try {
-      const [tasksData, roomsData, statsData] = await Promise.all([
+      // getMyTasks only needs the signed-in user, so it belongs in the same
+      // batch — it used to be awaited after this block and added a whole
+      // round trip to the dashboard's load time.
+      const [tasksData, roomsData, statsData, myTasksData] = await Promise.all([
         getAllTasks().catch(() => []),
         getRooms().catch(() => []),
         getDashboard().catch(() => null),
+        isStaff ? getMyTasks().catch(() => []) : Promise.resolve([]),
       ]);
 
       setAllTasks(tasksData);
       setRooms(roomsData);
       setDashboardStats(statsData);
-
-      if (isStaff) {
-        const myTasksData = await getMyTasks().catch(() => []);
-        setMyTasks(myTasksData);
-      }
+      setMyTasks(myTasksData);
     } catch {
       setError('Failed to load housekeeping dashboard data.');
     } finally {

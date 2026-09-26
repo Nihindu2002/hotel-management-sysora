@@ -8,6 +8,7 @@ import {
 } from "../../services/roomService";
 import { useAuth } from "../../context/AuthContext";
 import type { Room, RoomStatus } from "../../types/room";
+import { roomImageSrcSet, roomImageUrl } from "../../utils/roomImage";
 
 const STATUS_CONFIG: Record<RoomStatus, { label: string; cls: string; dotCls: string }> = {
   AVAILABLE: { label: "Available", cls: "bg-emerald-100 text-emerald-800", dotCls: "bg-emerald-500" },
@@ -400,8 +401,12 @@ export default function AdminRoomDetails() {
                     className="group relative aspect-square overflow-hidden rounded-lg border border-gray-200 bg-gray-100"
                   >
                     <img
-                      src={img}
+                      src={roomImageUrl(img, 720, '1:1')}
+                      srcSet={roomImageSrcSet(img, [360, 540, 720], '1:1')}
+                      sizes="(min-width: 640px) 30vw, 45vw"
                       alt={`Room ${room.roomNumber} image ${i + 1}`}
+                      loading="lazy"
+                      decoding="async"
                       className="h-full w-full cursor-pointer object-cover transition-transform group-hover:scale-105"
                       onClick={() => setLightboxIndex(i)}
                     />

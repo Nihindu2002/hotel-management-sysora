@@ -54,13 +54,26 @@ export default function InventoryItemDetails() {
     if (!itemId) return;
     try {
       setError(null);
-      setItem(await getItemById(itemId));
 
-      try {
-        setTransactions(await getTransactionsByItemId(itemId));
+      // Both lookups key off itemId, so neither waits on the other. The
+      // transaction log is still optional: a role without audit-log access
+      // sees the item itself and a notice, which is what allSettled lets us
+      // keep while removing the serial round trip.
+      const [itemResult, transactionsResult] = await Promise.allSettled([
+        getItemById(itemId),
+        getTransactionsByItemId(itemId),
+      ]);
+
+      if (itemResult.status === 'rejected') {
+        throw itemResult.reason;
+      }
+
+      setItem(itemResult.value);
+
+      if (transactionsResult.status === 'fulfilled') {
+        setTransactions(transactionsResult.value);
         setTransactionsDenied(false);
-      } catch {
-        // Roles without audit-log access still see the item itself.
+      } else {
         setTransactions([]);
         setTransactionsDenied(true);
       }

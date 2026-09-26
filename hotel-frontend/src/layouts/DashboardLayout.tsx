@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { Outlet, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getRoleRedirectPath } from '../utils/roleRedirect';
@@ -74,9 +74,22 @@ export default function DashboardLayout() {
         />
 
         <main className="flex-1 overflow-y-auto bg-gray-50 p-6">
-          <Outlet />
+          {/* Every staff page is lazy-loaded, so the sidebar and header stay
+              put and only the content area waits for its chunk. */}
+          <Suspense fallback={<RouteFallback />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
+    </div>
+  );
+}
+
+/** Placeholder shown while a route's chunk downloads. */
+function RouteFallback() {
+  return (
+    <div className="flex h-64 items-center justify-center text-sm text-gray-500" role="status">
+      Loading…
     </div>
   );
 }

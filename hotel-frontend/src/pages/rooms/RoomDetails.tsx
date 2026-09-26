@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { getRoomById } from "../../services/roomService";
 import type { Room } from "../../types/room";
 
+import { roomImageSrcSet, roomImageUrl } from "../../utils/roomImage";
 export default function RoomDetails() {
   const { roomId } = useParams();
   const [room, setRoom] = useState<Room | null>(null);
@@ -49,8 +50,12 @@ export default function RoomDetails() {
             {room.images.map((image) => (
               <img
                 key={image}
-                src={image}
+                src={roomImageUrl(image, 1080, '16:9')}
+                srcSet={roomImageSrcSet(image, [480, 720, 1080], '16:9')}
+                sizes="(min-width: 768px) 50vw, 100vw"
                 alt={`Room ${room.roomNumber}`}
+                loading="lazy"
+                decoding="async"
                 className="h-72 w-full object-cover"
               />
             ))}

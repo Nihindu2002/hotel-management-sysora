@@ -127,9 +127,36 @@ public class CustomerService {
     }
 
     public CustomerDashboard getCustomerDashboard(String customerUid) {
-        List<Reservation> upcoming = getUpcomingReservations(customerUid);
-        CurrentStayResponse currentStay = getCurrentStay(customerUid);
-        long totalReservations = reservationService.getCustomerReservations(customerUid).size();
+        // One fetch, three views of it. This used to call
+        // getCustomerReservations three times over — and because
+        // ReservationRepository caches nothing, that was three Firestore round
+        // trips for one response, two of them pure waste.
+        List<Reservation> reservations =
+                reservationService.getCustomerReservations(customerUid);
+
+        LocalDate today = LocalDate.now();
+
+        List<Reservation> upcoming = reservations.stream()
+                .filter(r -> r.getCheckOutDate() != null && !r.getCheckOutDate().isBefore(today))
+                .filter(r -> r.getStatus() != ReservationStatus.CANCELLED && r.getStatus() != ReservationStatus.CHECKED_OUT)
+                .toList();
+
+        CurrentStayResponse currentStay = reservations.stream()
+                .filter(r -> r.getStatus() == ReservationStatus.CHECKED_IN)
+                .findFirst()
+                .map(r -> {
+                    Room room = roomRepository.findById(r.getRoomId()).orElse(null);
+                    return new CurrentStayResponse(
+                            r,
+                            room,
+                            r.getCheckInDate(),
+                            r.getCheckOutDate(),
+                            r.getNumberOfGuests()
+                    );
+                })
+                .orElse(null);
+
+        long totalReservations = reservations.size();
 
         long pendingPayments = invoiceService.getMyInvoices(customerUid).stream()
                 .filter(inv -> "UNPAID".equalsIgnoreCase(inv.getStatus()) || "PARTIALLY_PAID".equalsIgnoreCase(inv.getStatus()))

@@ -22,6 +22,16 @@ public class StaffService {
     private volatile long lastSyncTimestamp = 0L;
     private static final long SYNC_INTERVAL_MS = 60 * 1000L; // Sync at most once every 60 seconds
 
+    /**
+     * Guards the backfill so only one caller runs it at a time. The old code
+     * used `synchronized`, which made every *other* caller block on the
+     * monitor for the whole duration — and it held that monitor across several
+     * Firestore round trips. A caller that loses this race returns the current
+     * list immediately instead of queueing.
+     */
+    private final java.util.concurrent.atomic.AtomicBoolean backfillRunning =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+
     public StaffService(StaffRepository staffRepository, UserRepository userRepository) {
         this.staffRepository = staffRepository;
         this.userRepository = userRepository;
@@ -166,13 +176,37 @@ public class StaffService {
         staffRepository.clearCache();
     }
 
-    private synchronized List<Staff> syncStaffProfilesFromUsers() {
+    /**
+     * Backfills a Staff record for any staff-role user who lacks one.
+     *
+     * The backfill stays on the calling request rather than moving to a
+     * background thread: the response is expected to contain the profiles it
+     * creates, so returning early would hand the caller an incomplete list and
+     * a second refresh to see their own new colleague.
+     *
+     * What changed is *who* runs it. It used to be `synchronized`, so a cache
+     * miss meant the caller waited for a full-collection read plus one write
+     * per missing user, and every other caller with a staff list open queued
+     * behind the same monitor. Only one caller still runs it, but the rest
+     * return the current list immediately.
+     */
+    private List<Staff> syncStaffProfilesFromUsers() {
         long now = System.currentTimeMillis();
-        if (now - lastSyncTimestamp < SYNC_INTERVAL_MS) {
-            return staffRepository.findAll();
-        }
-        lastSyncTimestamp = now;
 
+        if (now - lastSyncTimestamp >= SYNC_INTERVAL_MS
+                && backfillRunning.compareAndSet(false, true)) {
+            lastSyncTimestamp = now;
+            try {
+                return backfillMissingStaffProfiles();
+            } finally {
+                backfillRunning.set(false);
+            }
+        }
+
+        return staffRepository.findAll();
+    }
+
+    private List<Staff> backfillMissingStaffProfiles() {
         List<Staff> staffList;
         try {
             staffList = new ArrayList<>(staffRepository.findAll());
@@ -196,12 +230,15 @@ public class StaffService {
                     .filter(Objects::nonNull)
                     .collect(Collectors.toCollection(HashSet::new));
 
+            boolean createdAny = false;
+
             for (User user : users) {
                 if (user.getRole() != null && !Role.CUSTOMER.name().equalsIgnoreCase(user.getRole())) {
                     if (!existingUserUids.contains(user.getUid())) {
                         Staff created = createDefaultStaffForUser(user, existingEmployeeIds);
                         if (created != null) {
                             staffList.add(created);
+                            createdAny = true;
                             if (created.getUserUid() != null) {
                                 existingUserUids.add(created.getUserUid());
                             }
@@ -211,6 +248,12 @@ public class StaffService {
                         }
                     }
                 }
+            }
+
+            // The repository caches for 60s, so without this the records we
+            // just wrote would stay invisible to the next read.
+            if (createdAny) {
+                staffRepository.clearCache();
             }
         } catch (Exception ignored) {
             // Gracefully ignore if firestore query fails

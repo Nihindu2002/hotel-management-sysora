@@ -8,6 +8,7 @@ import { getRoomById } from '../../services/roomService';
 import type { Reservation } from '../../types/reservation';
 import type { Room } from '../../types/room';
 import { formatMoney, nightsBetween, roomTypeLabel } from '../../utils/siteFormat';
+import { roomImageSrcSet, roomImageUrl } from '../../utils/roomImage';
 
 /** Local `YYYY-MM-DD`. */
 function todayString(): string {
@@ -408,7 +409,9 @@ export default function BookingWizard() {
               <>
                 {room.images?.length > 0 && (
                   <img
-                    src={room.images[0]}
+                    src={roomImageUrl(room.images[0], 1080)}
+                    srcSet={roomImageSrcSet(room.images[0], [480, 720, 1080])}
+                    sizes="(min-width: 768px) 40vw, 90vw"
                     alt={`Room ${room.roomNumber}`}
                     className="mt-5 aspect-[4/3] w-full object-cover"
                   />

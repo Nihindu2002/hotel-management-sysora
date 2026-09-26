@@ -78,11 +78,22 @@ export default function ReservationDetails() {
     if (!reservationId) return;
     let ignore = false;
 
+    // Keyed by reservationId, which we already have, so it runs alongside the
+    // reservation instead of nested inside its response handler.
+    getInvoiceByReservationId(reservationId)
+      .then((inv) => {
+        if (!ignore) setInvoice(inv);
+      })
+      .catch(() => {
+        if (!ignore) setInvoice(null);
+      });
+
     getReservationById(reservationId)
       .then((res) => {
         if (ignore) return;
         setReservation(res);
 
+        // Needs res.roomId, so this hop stays nested.
         if (res.roomId) {
           getRoomById(res.roomId)
             .then((r) => {
@@ -92,14 +103,6 @@ export default function ReservationDetails() {
               if (!ignore) setRoom(null);
             });
         }
-
-        getInvoiceByReservationId(reservationId)
-          .then((inv) => {
-            if (!ignore) setInvoice(inv);
-          })
-          .catch(() => {
-            if (!ignore) setInvoice(null);
-          });
       })
       .catch((err: any) => {
         if (ignore) return;

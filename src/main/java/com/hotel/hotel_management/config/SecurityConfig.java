@@ -82,11 +82,16 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PATCH, "/api/users/*/role")
                         .hasRole("ADMIN")
 
+                        // Public room browsing. The LUMI site lists rooms to
+                        // signed-out guests, so gating these locked the public
+                        // pages behind a sign-in the visitor had no reason to
+                        // have. Read-only: creating, editing and deleting rooms
+                        // stay role-gated below.
                         .requestMatchers(HttpMethod.GET, "/api/rooms")
-                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "CUSTOMER")
+                        .permitAll()
 
                         .requestMatchers(HttpMethod.GET, "/api/rooms/*")
-                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "CUSTOMER")
+                        .permitAll()
 
                         .requestMatchers(HttpMethod.POST, "/api/rooms")
                         .hasAnyRole("ADMIN", "MANAGER")
@@ -130,11 +135,17 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/reservations/my")
                         .hasRole("CUSTOMER")
 
+                        // Booking search is reachable from the public site's
+                        // date form, so it cannot require a session. It takes
+                        // dates and party size only — never a customer id — and
+                        // returns which rooms are free, so nothing private is
+                        // exposed. Must stay above the /api/reservations/*
+                        // matcher, which would otherwise swallow this path.
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/reservations/availability"
                         )
-                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "CUSTOMER")
+                        .permitAll()
 
                         .requestMatchers(HttpMethod.GET, "/api/reservations/*")
                         .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "CUSTOMER")
@@ -536,6 +547,22 @@ public class SecurityConfig {
                                 "/api/payments/*"
                         )
                         .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "CUSTOMER")
+
+                        // The last two RBAC probes had no rule, so they fell
+                        // through to anyRequest().authenticated() and answered
+                        // every signed-in role — including CUSTOMER — from the
+                        // front-desk endpoint they are supposed to guard.
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/reception/test"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST")
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/receptionist/test"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST")
 
                         .anyRequest().authenticated()
                 )

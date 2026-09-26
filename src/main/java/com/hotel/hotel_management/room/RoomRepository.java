@@ -18,11 +18,59 @@ public class RoomRepository {
 
     private final Firestore firestore;
 
+    /**
+     * Rooms are read constantly and written rarely: the public listing, the
+     * booking search, almost every dashboard and the housekeeping and
+     * maintenance task forms all call findAll, and each call was a separate
+     * full-collection round trip to Firestore.
+     *
+     * A short TTL collapses those to one. Every write method below clears it,
+     * so an edit is visible on the very next read rather than up to a minute
+     * later — the cache is never the reason stale data shows up.
+     */
+    private volatile List<Room> allRoomsCache = null;
+    private volatile long allRoomsCacheExpiry = 0L;
+    private static final long CACHE_TTL_MS = 60 * 1000L;
+    private final Object cacheLock = new Object();
+
     public RoomRepository(Firestore firestore) {
         this.firestore = firestore;
     }
 
+    /**
+     * Drops the cached list so the next read goes back to Firestore. Called by
+     * every method that writes, which is what keeps this safe to use.
+     */
+    public void clearCache() {
+        allRoomsCache = null;
+        allRoomsCacheExpiry = 0L;
+    }
+
+    private boolean cacheIsWarm() {
+        return allRoomsCache != null && System.currentTimeMillis() < allRoomsCacheExpiry;
+    }
+
     public List<Room> findAll() {
+        if (cacheIsWarm()) {
+            return allRoomsCache;
+        }
+
+        // Serialise the refill so a cold cache costs one fetch rather than one
+        // per concurrent request; whoever loses the race re-reads the field the
+        // winner just populated.
+        synchronized (cacheLock) {
+            if (cacheIsWarm()) {
+                return allRoomsCache;
+            }
+
+            List<Room> rooms = readAllFromFirestore();
+            allRoomsCache = rooms;
+            allRoomsCacheExpiry = System.currentTimeMillis() + CACHE_TTL_MS;
+            return rooms;
+        }
+    }
+
+    private List<Room> readAllFromFirestore() {
         try {
             return firestore.collection("rooms")
                     .get()
@@ -44,6 +92,15 @@ public class RoomRepository {
     }
 
     public Optional<Room> findById(String roomId) {
+        // Serving single-room reads from the warmed list avoids a round trip
+        // each. Safe because writes clear the cache, so a room created since
+        // the list was filled cannot be missing from it.
+        if (cacheIsWarm()) {
+            return allRoomsCache.stream()
+                    .filter(room -> roomId.equals(room.getRoomId()))
+                    .findFirst();
+        }
+
         try {
             DocumentSnapshot document = firestore
                     .collection("rooms")

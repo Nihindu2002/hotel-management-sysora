@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { getRooms } from "../../services/roomService";
 import type { Room, RoomType, RoomStatus } from "../../types/room";
 import { useAuth } from "../../context/AuthContext";
+import { roomImageSrcSet, roomImageUrl } from "../../utils/roomImage";
 
 const STATUS_CONFIG: Record<RoomStatus, { label: string; cls: string }> = {
   AVAILABLE: { label: "Available", cls: "bg-emerald-100 text-emerald-800" },
@@ -182,8 +183,12 @@ export default function AdminRooms() {
                   >
                     {room.images?.length > 0 ? (
                       <img
-                        src={room.images[0]}
+                        src={roomImageUrl(room.images[0], 1080, '16:9')}
+                        srcSet={roomImageSrcSet(room.images[0], [480, 720, 1080], '16:9')}
+                        sizes="(min-width: 1280px) 22vw, (min-width: 768px) 33vw, 90vw"
                         alt={`Room ${room.roomNumber}`}
+                        loading="lazy"
+                        decoding="async"
                         className="h-full w-full object-cover transition-transform group-hover:scale-105"
                       />
                     ) : (

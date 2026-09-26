@@ -6,6 +6,7 @@ import { getAvailableRooms } from '../../services/availabilityService';
 import type { AvailabilitySearchParams } from '../../types/availability';
 import type { Room } from '../../types/room';
 import { formatMoney, nightsBetween, roomTypeLabel } from '../../utils/siteFormat';
+import { roomImageSrcSet, roomImageUrl } from '../../utils/roomImage';
 
 /** Local `YYYY-MM-DD`, used as the `min` on the check-in field. */
 function todayString(): string {
@@ -293,10 +294,13 @@ export default function AvailabilityPage() {
                       <div className="overflow-hidden">
                         {room.images?.length > 0 ? (
                           <img
-                            src={room.images[0]}
+                            src={roomImageUrl(room.images[0], 1080)}
+                            srcSet={roomImageSrcSet(room.images[0], [480, 720, 1080])}
+                            sizes="(min-width: 1024px) 30vw, (min-width: 640px) 45vw, 90vw"
                             alt={`Room ${room.roomNumber}`}
                             loading="lazy"
-                            className="aspect-[4/5] w-full object-cover"
+                            decoding="async"
+                            className="aspect-[4/3] w-full object-cover"
                           />
                         ) : (
                           <div className="flex aspect-[4/5] w-full items-center justify-center bg-line/40 text-xs tracking-[0.2em] text-muted uppercase">
