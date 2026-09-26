@@ -45,7 +45,7 @@ public class StaffService {
         User user = userRepository.findByUid(request.userUid())
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-        if (Role.CUSTOMER.name().equalsIgnoreCase(user.getRole())) {
+        if (!Role.isStaffRole(user.getRole())) {
             throw new IllegalArgumentException("User must have a staff role");
         }
 
@@ -138,7 +138,7 @@ public class StaffService {
                 .orElseGet(() -> {
                     User user = userRepository.findByUid(userUid)
                             .orElseThrow(() -> new IllegalArgumentException("Staff member not found for user"));
-                    if (Role.CUSTOMER.name().equalsIgnoreCase(user.getRole())) {
+                    if (!Role.isStaffRole(user.getRole())) {
                         throw new IllegalArgumentException("Staff member not found for user");
                     }
                     Staff created = createDefaultStaffForUser(user);
@@ -233,7 +233,7 @@ public class StaffService {
             boolean createdAny = false;
 
             for (User user : users) {
-                if (user.getRole() != null && !Role.CUSTOMER.name().equalsIgnoreCase(user.getRole())) {
+                if (Role.isStaffRole(user.getRole())) {
                     if (!existingUserUids.contains(user.getUid())) {
                         Staff created = createDefaultStaffForUser(user, existingEmployeeIds);
                         if (created != null) {

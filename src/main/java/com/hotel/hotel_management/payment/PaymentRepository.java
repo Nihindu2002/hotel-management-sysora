@@ -29,7 +29,7 @@ public class PaymentRepository {
         data.put("paymentId", payment.getPaymentId());
         data.put("invoiceId", payment.getInvoiceId());
         data.put("reservationId", payment.getReservationId());
-        data.put("customerUid", payment.getCustomerUid());
+        data.put("recordedBy", payment.getRecordedBy());
         data.put("amount", payment.getAmount());
         data.put("paymentMethod", payment.getPaymentMethod());
         data.put("status", payment.getStatus());
@@ -75,8 +75,8 @@ public class PaymentRepository {
             payment.setReservationId(
                     snapshot.getString("reservationId"));
 
-            payment.setCustomerUid(
-                    snapshot.getString("customerUid"));
+            payment.setRecordedBy(
+                    snapshot.getString("recordedBy"));
 
             payment.setAmount(
                     snapshot.getDouble("amount"));
@@ -179,8 +179,8 @@ public java.util.List<Payment> findByInvoiceId(
             payment.setReservationId(
                     snapshot.getString("reservationId"));
 
-            payment.setCustomerUid(
-                    snapshot.getString("customerUid"));
+            payment.setRecordedBy(
+                    snapshot.getString("recordedBy"));
 
             payment.setAmount(
                     snapshot.getDouble("amount"));
@@ -243,8 +243,8 @@ public java.util.List<Payment> findAll() {
                     snapshot.getString("invoiceId"));
             payment.setReservationId(
                     snapshot.getString("reservationId"));
-            payment.setCustomerUid(
-                    snapshot.getString("customerUid"));
+            payment.setRecordedBy(
+                    snapshot.getString("recordedBy"));
             payment.setAmount(
                     snapshot.getDouble("amount"));
             payment.setPaymentMethod(
@@ -378,43 +378,6 @@ public double getTotalRefundedForInvoice(String invoiceId) {
         throw new IllegalStateException(
                 "Unable to calculate refunded amount",
                 exception);
-    }
-}
-
-public java.util.List<Payment> findByCustomerUid(String customerUid) {
-    try {
-        var documents = firestore.collection("payments")
-                .whereEqualTo("customerUid", customerUid)
-                .get()
-                .get()
-                .getDocuments();
-
-        java.util.List<Payment> payments = new java.util.ArrayList<>();
-        for (var snapshot : documents) {
-            Payment payment = new Payment();
-            payment.setPaymentId(snapshot.getString("paymentId"));
-            payment.setInvoiceId(snapshot.getString("invoiceId"));
-            payment.setReservationId(snapshot.getString("reservationId"));
-            payment.setCustomerUid(snapshot.getString("customerUid"));
-            payment.setAmount(snapshot.getDouble("amount"));
-            payment.setPaymentMethod(snapshot.getString("paymentMethod"));
-            payment.setStatus(snapshot.getString("status"));
-
-            if (snapshot.getTimestamp("createdAt") != null) {
-                payment.setCreatedAt(snapshot.getTimestamp("createdAt").toDate().toInstant());
-            }
-            if (snapshot.getTimestamp("updatedAt") != null) {
-                payment.setUpdatedAt(snapshot.getTimestamp("updatedAt").toDate().toInstant());
-            }
-
-            payments.add(payment);
-        }
-        return payments;
-    } catch (InterruptedException exception) {
-        Thread.currentThread().interrupt();
-        throw new IllegalStateException("Unable to find payments by customerUid", exception);
-    } catch (ExecutionException exception) {
-        throw new IllegalStateException("Unable to find payments by customerUid", exception);
     }
 }
 }

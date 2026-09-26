@@ -2,16 +2,24 @@ package com.hotel.hotel_management.payment;
 
 import java.time.Instant;
 
+/**
+ * A payment recorded at the desk against an invoice.
+ *
+ * This is an accounting record, not a gateway transaction: a receptionist takes
+ * cash or a card, then records what was taken. {@code recordedBy} holds the
+ * Firebase uid of the staff member who entered it.
+ */
 public class Payment {
 
     private String paymentId;
     private String invoiceId;
     private String reservationId;
-    private String customerUid;
 
     private Double amount;
     private String paymentMethod;
     private String status;
+
+    private String recordedBy;
 
     private Instant createdAt;
     private Instant updatedAt;
@@ -40,14 +48,6 @@ public class Payment {
         this.reservationId = reservationId;
     }
 
-    public String getCustomerUid() {
-        return customerUid;
-    }
-
-    public void setCustomerUid(String customerUid) {
-        this.customerUid = customerUid;
-    }
-
     public Double getAmount() {
         return amount;
     }
@@ -70,6 +70,14 @@ public class Payment {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getRecordedBy() {
+        return recordedBy;
+    }
+
+    public void setRecordedBy(String recordedBy) {
+        this.recordedBy = recordedBy;
     }
 
     public Instant getCreatedAt() {

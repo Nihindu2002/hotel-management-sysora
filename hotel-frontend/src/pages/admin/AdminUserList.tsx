@@ -13,7 +13,7 @@ import {
 } from "../../schemas/authSchemas";
 import type { UserProfile, UserRole } from "../../types/user";
 
-type TabKey = "staff" | "customers" | "register";
+type TabKey = "staff" | "register";
 
 const ALL_ROLES: UserRole[] = [
   "ADMIN",
@@ -23,7 +23,6 @@ const ALL_ROLES: UserRole[] = [
   "MAINTENANCE",
   "ACCOUNTANT",
   "STAFF",
-  "CUSTOMER",
 ];
 
 const STAFF_ROLES: UserRole[] = [
@@ -44,7 +43,6 @@ const ROLE_COLOR: Record<UserRole, string> = {
   MAINTENANCE: "bg-orange-100 text-orange-800 border-orange-200",
   ACCOUNTANT: "bg-teal-100 text-teal-800 border-teal-200",
   STAFF: "bg-gray-100 text-gray-800 border-gray-200",
-  CUSTOMER: "bg-emerald-100 text-emerald-800 border-emerald-200",
 };
 
 interface RoleModalState {
@@ -76,9 +74,7 @@ export default function AdminUserList() {
   // Tab management: read from URL or default to "staff"
   const initialTab = (searchParams.get("tab") as TabKey) || "staff";
   const [activeTab, setActiveTab] = useState<TabKey>(
-    ["staff", "customers", "register"].includes(initialTab)
-      ? initialTab
-      : "staff"
+    ["staff", "register"].includes(initialTab) ? initialTab : "staff"
   );
 
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -89,9 +85,6 @@ export default function AdminUserList() {
   // Filters for Staff tab
   const [staffSearchQuery, setStaffSearchQuery] = useState("");
   const [staffFilterRole, setStaffFilterRole] = useState<UserRole | "ALL">("ALL");
-
-  // Filters for Customers tab
-  const [customerSearchQuery, setCustomerSearchQuery] = useState("");
 
   // Role change modal state
   const [roleModal, setRoleModal] = useState<RoleModalState | null>(null);
@@ -150,15 +143,8 @@ export default function AdminUserList() {
     return fetchUsers();
   }, []);
 
-  // Staff members (all roles except CUSTOMER)
-  const staffMembers = useMemo(() => {
-    return users.filter((u) => u.role !== "CUSTOMER");
-  }, [users]);
-
-  // Customers (only role === 'CUSTOMER')
-  const customerMembers = useMemo(() => {
-    return users.filter((u) => u.role === "CUSTOMER");
-  }, [users]);
+  // Every account in this application belongs to a hotel employee.
+  const staffMembers = users;
 
   // Filtered staff
   const filteredStaff = useMemo(() => {
@@ -176,22 +162,6 @@ export default function AdminUserList() {
       return true;
     });
   }, [staffMembers, staffFilterRole, staffSearchQuery]);
-
-  // Filtered customers
-  const filteredCustomers = useMemo(() => {
-    return customerMembers.filter((u) => {
-      if (customerSearchQuery.trim()) {
-        const q = customerSearchQuery.toLowerCase();
-        const name = `${u.firstName ?? ""} ${u.lastName ?? ""}`.toLowerCase();
-        return (
-          name.includes(q) ||
-          u.email.toLowerCase().includes(q) ||
-          (u.phone && u.phone.toLowerCase().includes(q))
-        );
-      }
-      return true;
-    });
-  }, [customerMembers, customerSearchQuery]);
 
   // Role change modal triggers
   const openRoleModal = (targetUser: UserProfile, newRole: UserRole) => {
@@ -271,9 +241,10 @@ export default function AdminUserList() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Users</h1>
         <p className="mt-1 text-sm text-gray-600">
-          Manage hotel staff members, customer accounts, change roles, and register new users.
+          Sign-in accounts for hotel employees. Change a role, or provision a new
+          staff login.
         </p>
       </div>
 
@@ -320,32 +291,7 @@ export default function AdminUserList() {
             </span>
           </button>
 
-          {/* Customers Tab */}
-          <button
-            type="button"
-            onClick={() => switchTab("customers")}
-            className={`flex items-center gap-2 border-b-2 py-3 text-sm font-semibold transition-colors ${
-              activeTab === "customers"
-                ? "border-indigo-600 text-indigo-600"
-                : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
-            }`}
-          >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-            </svg>
-            Customers
-            <span
-              className={`ml-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
-                activeTab === "customers"
-                  ? "bg-indigo-100 text-indigo-700"
-                  : "bg-gray-100 text-gray-600"
-              }`}
-            >
-              {customerMembers.length}
-            </span>
-          </button>
-
-          {/* Register User Tab */}
+          {/* Register Staff Tab */}
           <button
             type="button"
             onClick={() => switchTab("register")}
@@ -435,62 +381,16 @@ export default function AdminUserList() {
         </div>
       )}
 
-      {/* ── TAB 2: CUSTOMERS ─────────────────────────────────────────────────── */}
-      {activeTab === "customers" && (
-        <div className="space-y-4">
-          {/* Filters for Customers */}
-          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="sm:col-span-2">
-                <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
-                  Search Customers
-                </label>
-                <input
-                  type="text"
-                  value={customerSearchQuery}
-                  onChange={(e) => setCustomerSearchQuery(e.target.value)}
-                  placeholder="Name, email, or phone…"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                />
-              </div>
-              <div className="flex items-end">
-                <button
-                  type="button"
-                  onClick={() => setCustomerSearchQuery("")}
-                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
-                >
-                  Clear
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Customers Table */}
-          {loading ? (
-            <div className="flex items-center justify-center py-16">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600" />
-              <span className="ml-3 text-sm text-gray-500">Loading customers…</span>
-            </div>
-          ) : (
-            <UserTable
-              users={filteredCustomers}
-              currentUser={currentUser}
-              emptyMessage="No customers found."
-              onOpenRoleModal={openRoleModal}
-            />
-          )}
-        </div>
-      )}
-
-      {/* ── TAB 3: REGISTER USER BY ADMIN ───────────────────────────────────── */}
+      {/* ── TAB 2: REGISTER STAFF ────────────────────────────────────────────── */}
       {activeTab === "register" && (
         <div className="mx-auto max-w-xl rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
           <div className="mb-6">
             <h2 className="text-xl font-bold text-gray-900">
-              Register User as Administrator
+              Create a staff account
             </h2>
             <p className="mt-1 text-sm text-gray-600">
-              Create a new user account with login credentials and assign their hotel role.
+              Provisions a login and assigns the employee's hotel role. There is
+              no customer role — guests are recorded on their reservation.
             </p>
           </div>
 
@@ -511,13 +411,6 @@ export default function AdminUserList() {
                       className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800 transition"
                     >
                       View in Staff List
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => switchTab("customers")}
-                      className="rounded-md border border-emerald-300 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 transition"
-                    >
-                      View in Customers
                     </button>
                   </div>
                 </div>
@@ -634,18 +527,13 @@ export default function AdminUserList() {
                 className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
                 {...registerField("role", { required: "Role is required" })}
               >
-                <optgroup label="Staff Roles">
-                  <option value="STAFF">STAFF (General Staff)</option>
-                  <option value="RECEPTIONIST">RECEPTIONIST (Front Desk)</option>
-                  <option value="HOUSEKEEPING">HOUSEKEEPING (Cleaning)</option>
-                  <option value="MAINTENANCE">MAINTENANCE (Repairs)</option>
-                  <option value="ACCOUNTANT">ACCOUNTANT (Finance)</option>
-                  <option value="MANAGER">MANAGER (Hotel Manager)</option>
-                  <option value="ADMIN">ADMIN (Full Administrator)</option>
-                </optgroup>
-                <optgroup label="Customer Role">
-                  <option value="CUSTOMER">CUSTOMER (Hotel Guest)</option>
-                </optgroup>
+                <option value="STAFF">STAFF (General Staff)</option>
+                <option value="RECEPTIONIST">RECEPTIONIST (Front Desk)</option>
+                <option value="HOUSEKEEPING">HOUSEKEEPING (Cleaning)</option>
+                <option value="MAINTENANCE">MAINTENANCE (Repairs)</option>
+                <option value="ACCOUNTANT">ACCOUNTANT (Finance)</option>
+                <option value="MANAGER">MANAGER (Hotel Manager)</option>
+                <option value="ADMIN">ADMIN (Full Administrator)</option>
               </select>
               <p className="mt-1 text-xs text-gray-500">
                 The role controls access permissions and visible navigation tabs.
@@ -766,16 +654,6 @@ export default function AdminUserList() {
                 {roleModal.newRole === "ADMIN" && (
                   <p className="mt-2 rounded bg-amber-50 px-3 py-2 text-xs text-amber-700">
                     ⚠️ You are granting full ADMIN privileges to this user.
-                  </p>
-                )}
-                {roleModal.user.role === "CUSTOMER" && (
-                  <p className="mt-2 rounded bg-indigo-50 px-3 py-2 text-xs text-indigo-700">
-                    ℹ️ This user will now appear in the <strong>Staff</strong> tab.
-                  </p>
-                )}
-                {roleModal.newRole === "CUSTOMER" && (
-                  <p className="mt-2 rounded bg-indigo-50 px-3 py-2 text-xs text-indigo-700">
-                    ℹ️ This user will now appear in the <strong>Customers</strong> tab.
                   </p>
                 )}
               </div>
@@ -1000,8 +878,6 @@ function RoleChangeDropdown({ user, onSelect }: RoleChangeDropdownProps) {
                       ? "bg-red-500"
                       : role === "MANAGER"
                       ? "bg-purple-500"
-                      : role === "CUSTOMER"
-                      ? "bg-emerald-500"
                       : role === "ACCOUNTANT"
                       ? "bg-teal-500"
                       : "bg-gray-400"

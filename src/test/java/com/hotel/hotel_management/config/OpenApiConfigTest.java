@@ -2,7 +2,6 @@ package com.hotel.hotel_management.config;
 
 import com.hotel.hotel_management.auth.AuthController;
 import com.hotel.hotel_management.controller.TestController;
-import com.hotel.hotel_management.customer.CustomerController;
 import com.hotel.hotel_management.dashboard.DashboardController;
 import com.hotel.hotel_management.finance.FinanceController;
 import com.hotel.hotel_management.housekeeping.HousekeepingController;
@@ -13,6 +12,7 @@ import com.hotel.hotel_management.payment.PaymentController;
 import com.hotel.hotel_management.reservation.ReservationController;
 import com.hotel.hotel_management.room.RoomController;
 import com.hotel.hotel_management.security.*;
+import com.hotel.hotel_management.settings.SettingsController;
 import com.hotel.hotel_management.staff.StaffController;
 import com.hotel.hotel_management.user.UserController;
 import io.swagger.v3.oas.annotations.Hidden;
@@ -66,7 +66,7 @@ class OpenApiConfigTest {
                 StaffController.class,
                 FinanceController.class,
                 DashboardController.class,
-                CustomerController.class
+                SettingsController.class
         );
 
         for (Class<?> controller : coreControllers) {

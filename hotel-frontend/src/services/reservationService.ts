@@ -1,103 +1,122 @@
 import api from './api';
-import type { CreateReservationRequest, Reservation } from '../types/reservation';
+import type {
+  CheckoutResponse,
+  CreateReservationRequest,
+  Reservation,
+} from '../types/reservation';
+import type { GenerateBillRequest, Invoice } from '../types/invoice';
+import type { Room } from '../types/room';
 
-/**
- * Creates a new customer reservation.
- * Authenticated Firebase user token is automatically attached by axios interceptor.
- */
+/** Takes a booking at the desk. Comes back CONFIRMED with an invoice opened. */
 export const createReservation = async (
-  data: CreateReservationRequest
+  data: CreateReservationRequest,
 ): Promise<Reservation> => {
   const response = await api.post<Reservation>('/reservations', data);
   return response.data;
 };
 
-/**
- * Retrieves all reservations belonging to the authenticated customer.
- */
-export const getMyReservations = async (): Promise<Reservation[]> => {
-  const response = await api.get<Reservation[]>('/reservations/my');
-  return response.data;
-};
-
-/**
- * Cancels a reservation on behalf of the customer.
- * Uses customer endpoint: PATCH /api/reservations/{reservationId}/cancel.
- */
-export const cancelCustomerReservation = async (
-  reservationId: string
-): Promise<Reservation> => {
-  const response = await api.patch<Reservation>(
-    `/reservations/${reservationId}/cancel`
-  );
-  return response.data;
-};
-
-/**
- * Retrieves details for a specific reservation.
- */
-export const getReservationById = async (
-  reservationId: string
-): Promise<Reservation> => {
-  const response = await api.get<Reservation>(`/reservations/${reservationId}`);
-  return response.data;
-};
-
-/**
- * Retrieves all reservations across the hotel (Staff/Admin/Manager).
- */
+/** Every reservation. */
 export const getAllReservations = async (): Promise<Reservation[]> => {
   const response = await api.get<Reservation[]>('/reservations');
   return response.data;
 };
 
-/**
- * Confirms a pending reservation (Staff only: ADMIN, MANAGER, RECEPTIONIST).
- * Auto-creates invoice in the backend.
- */
-export const confirmReservation = async (
-  reservationId: string
+export const getReservationById = async (
+  reservationId: string,
 ): Promise<Reservation> => {
-  const response = await api.patch<Reservation>(
-    `/reservations/${reservationId}/confirm`
+  const response = await api.get<Reservation>(
+    `/reservations/${reservationId}`,
   );
   return response.data;
 };
 
-/**
- * Cancels a reservation on behalf of hotel staff (ADMIN, MANAGER, RECEPTIONIST).
- */
 export const cancelReservationByStaff = async (
-  reservationId: string
+  reservationId: string,
 ): Promise<Reservation> => {
   const response = await api.patch<Reservation>(
-    `/reservations/${reservationId}/cancel-by-staff`
+    `/reservations/${reservationId}/cancel-by-staff`,
   );
   return response.data;
 };
 
-/**
- * Checks in a confirmed guest (ADMIN, MANAGER, RECEPTIONIST).
- */
+/** Kept for reservations taken before desk bookings became confirmed on the spot. */
+export const confirmReservation = async (
+  reservationId: string,
+): Promise<Reservation> => {
+  const response = await api.patch<Reservation>(
+    `/reservations/${reservationId}/confirm`,
+  );
+  return response.data;
+};
+
+/** Checks the guest in. The room becomes OCCUPIED server-side. */
 export const checkInReservation = async (
-  reservationId: string
+  reservationId: string,
 ): Promise<Reservation> => {
   const response = await api.patch<Reservation>(
-    `/reservations/${reservationId}/check-in`
+    `/reservations/${reservationId}/check-in`,
   );
   return response.data;
 };
 
 /**
- * Checks out a guest (ADMIN, MANAGER, RECEPTIONIST).
+ * Rooms with no conflicting stay for the date range.
+ *
+ * Availability is decided by the backend from real reservations, so this is the
+ * only answer the desk should trust.
+ */
+export const getAvailableRooms = async (
+  checkInDate: string,
+  checkOutDate: string,
+  numberOfGuests?: number,
+): Promise<Room[]> => {
+  const response = await api.get<Room[]>('/reservations/availability', {
+    params: { checkInDate, checkOutDate, numberOfGuests },
+  });
+  return response.data;
+};
+
+/**
+ * Prices the stay and stores the result.
+ *
+ * The request carries charges and a discount only — never a total. Everything
+ * on the returned invoice was calculated by the backend.
+ */
+export const generateFinalBill = async (
+  reservationId: string,
+  bill: GenerateBillRequest,
+): Promise<Invoice> => {
+  const response = await api.post<Invoice>(
+    `/reservations/${reservationId}/bill`,
+    bill,
+  );
+  return response.data;
+};
+
+/** The stay's current bill, or null if none has been opened. */
+export const getBill = async (
+  reservationId: string,
+): Promise<Invoice | null> => {
+  try {
+    const response = await api.get<Invoice>(`/reservations/${reservationId}/bill`);
+    return response.data;
+  } catch (err: any) {
+    if (err?.response?.status === 404) {
+      return null;
+    }
+    throw err;
+  }
+};
+
+/**
+ * Finalises checkout: the stay becomes CHECKED_OUT, the room CLEANING, and a
+ * housekeeping task is raised.
  */
 export const checkOutReservation = async (
-  reservationId: string
-): Promise<Reservation> => {
-  const response = await api.patch<Reservation>(
-    `/reservations/${reservationId}/check-out`
+  reservationId: string,
+): Promise<CheckoutResponse> => {
+  const response = await api.post<CheckoutResponse>(
+    `/reservations/${reservationId}/check-out`,
   );
   return response.data;
 };
-
-

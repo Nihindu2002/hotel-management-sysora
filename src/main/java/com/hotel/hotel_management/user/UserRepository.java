@@ -2,7 +2,6 @@ package com.hotel.hotel_management.user;
 
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.Firestore;
-import com.hotel.hotel_management.auth.RegisterRequest;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
@@ -57,15 +56,27 @@ public class UserRepository {
         }
     }
 
-    public void saveProfile(String uid, RegisterRequest request) {
+    /**
+     * Writes a new staff profile. The Firebase Auth account is created by the
+     * caller first, so {@code uid} always refers to an existing login.
+     */
+    public User createProfile(
+            String uid,
+            String email,
+            String firstName,
+            String lastName,
+            String phone,
+            Role role) {
+
         Instant now = Instant.now();
+
         Map<String, Object> profile = new HashMap<>();
         profile.put("uid", uid);
-        profile.put("email", request.getEmail());
-        profile.put("firstName", request.getFirstName());
-        profile.put("lastName", request.getLastName());
-        profile.put("phone", request.getPhone());
-        profile.put("role", "CUSTOMER");
+        profile.put("email", email);
+        profile.put("firstName", firstName);
+        profile.put("lastName", lastName);
+        profile.put("phone", phone);
+        profile.put("role", role.name());
         profile.put("enabled", true);
         profile.put("createdAt", Date.from(now));
         profile.put("updatedAt", Date.from(now));
@@ -73,6 +84,11 @@ public class UserRepository {
         try {
             firestore.collection("users").document(uid).set(profile).get();
             userCache.remove(uid);
+
+            return findByUid(uid)
+                    .orElseThrow(() ->
+                            new IllegalStateException("User not found"));
+
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Unable to save user profile to Firestore", exception);

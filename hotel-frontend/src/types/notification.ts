@@ -13,8 +13,9 @@ export type NotificationType =
  * DOM's global `Notification` type.
  *
  * `link` is decided by the backend when the notification is created, because the
- * right destination depends on who is being told: a completed payment points a
- * customer at `/my-payments` but would point staff elsewhere.
+ * right destination depends on which role is being told — a checkout-cleaning
+ * task points housekeeping at their queue, a new booking points the front desk
+ * at the reservations list.
  */
 export interface AppNotification {
   notificationId: string;

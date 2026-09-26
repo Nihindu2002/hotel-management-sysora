@@ -190,7 +190,7 @@ class NotificationServiceTest {
                 user("admin-1", Role.ADMIN, true),
                 user("admin-2", Role.ADMIN, false),
                 user("manager-1", Role.MANAGER, true),
-                user("customer-1", Role.CUSTOMER, true)));
+                user("housekeeping-1", Role.HOUSEKEEPING, true)));
 
         notificationService.emitToRoles(
                 Set.of(Role.ADMIN, Role.MANAGER),
@@ -224,7 +224,7 @@ class NotificationServiceTest {
 
     @Test
     void emitToRoles_NoMatchingUsersWritesNothing() {
-        when(userRepository.findAll()).thenReturn(List.of(user("customer-1", Role.CUSTOMER, true)));
+        when(userRepository.findAll()).thenReturn(List.of(user("housekeeping-1", Role.HOUSEKEEPING, true)));
 
         notificationService.emitToRoles(
                 Set.of(Role.ADMIN), NotificationType.INVENTORY, "t", "m", null, null);

@@ -27,31 +27,31 @@ export const updateUserRole = async (uid: string, role: UserRole): Promise<UserP
   return response.data;
 };
 
+/**
+ * Provisions a staff login (ADMIN only).
+ *
+ * The backend creates the Firebase Authentication account and the profile in
+ * one step, with the role that was chosen here. There is no customer role: this
+ * application only has staff accounts.
+ */
 export const registerUserByAdmin = async (
   data: AdminRegisterUserRequest
 ): Promise<UserProfile> => {
-  // 1. Call backend registration endpoint (creates user in Firebase Auth + Firestore profile with role CUSTOMER)
   const response = await api.post<{
     message: string;
     uid: string;
     email: string;
     role: string;
-  }>('/auth/register', {
+  }>('/users', {
     firstName: data.firstName,
     lastName: data.lastName,
     email: data.email,
     phone: data.phone,
     password: data.password,
+    role: data.role,
   });
 
-  const uid = response.data.uid;
-
-  // 2. If the admin selected a role other than CUSTOMER, immediately update role
-  if (data.role && data.role !== 'CUSTOMER') {
-    return await updateUserRole(uid, data.role);
-  }
-
-  return getUserByUid(uid);
+  return getUserByUid(response.data.uid);
 };
 
 /**

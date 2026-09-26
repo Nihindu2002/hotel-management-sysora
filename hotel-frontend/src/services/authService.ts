@@ -7,32 +7,15 @@ import {
   type User as FirebaseUser,
 } from 'firebase/auth';
 import { auth } from '../lib/firebase';
-import api from '../lib/api';
-import type { RegisterRequest, RegisterResponse } from '../types/auth';
-
-/**
- * Register a new user.
- *
- * 1. Calls the backend to create Firebase Auth user + Firestore profile.
- * 2. Signs in on the client side so the Firebase SDK manages the session.
- */
-export async function register(
-  data: RegisterRequest,
-): Promise<RegisterResponse> {
-  const response = await api.post<RegisterResponse>('/auth/register', data);
-
-  // Sign in on the client side for session management & auto token refresh
-  await signInWithEmailAndPassword(auth, data.email, data.password);
-
-  return response.data;
-}
 
 /**
  * Login an existing user.
  *
- * Uses Firebase client SDK directly for:
- * - Automatic ID token refresh
- * - Persistent session via onAuthStateChanged
+ * Uses the Firebase client SDK directly for automatic ID token refresh and a
+ * session that persists via onAuthStateChanged.
+ *
+ * There is no register function: accounts are provisioned for hotel employees
+ * by an administrator, and the application has no public sign-up.
  */
 export async function login(
   email: string,

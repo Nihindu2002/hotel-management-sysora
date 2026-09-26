@@ -7,15 +7,23 @@ import com.hotel.hotel_management.reservation.ReservationRepository;
 import com.hotel.hotel_management.reservation.ReservationStatus;
 import com.hotel.hotel_management.room.Room;
 import com.hotel.hotel_management.room.RoomRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+/**
+ * Owns the invoice record: one per reservation, priced by {@link BillingService}.
+ *
+ * The desk can regenerate a bill as many times as it likes before checkout —
+ * each regeneration replaces the stored breakdown rather than stacking a second
+ * invoice on the same stay.
+ */
 @Service
 public class InvoiceService {
 
@@ -23,147 +31,136 @@ public class InvoiceService {
     private final ReservationRepository reservationRepository;
     private final RoomRepository roomRepository;
     private final PaymentService paymentService;
+    private final BillingService billingService;
 
+    @Autowired
     public InvoiceService(
             InvoiceRepository invoiceRepository,
             ReservationRepository reservationRepository,
             RoomRepository roomRepository,
-            PaymentService paymentService) {
+            @Lazy PaymentService paymentService,
+            BillingService billingService) {
 
         this.invoiceRepository = invoiceRepository;
         this.reservationRepository = reservationRepository;
         this.roomRepository = roomRepository;
         this.paymentService = paymentService;
+        this.billingService = billingService;
     }
 
+    /** Test wiring without a payment service. */
+    public InvoiceService(
+            InvoiceRepository invoiceRepository,
+            ReservationRepository reservationRepository,
+            RoomRepository roomRepository,
+            BillingService billingService) {
+
+        this(invoiceRepository, reservationRepository, roomRepository, null, billingService);
+    }
+
+    /**
+     * Creates the room-only invoice for a reservation.
+     *
+     * @throws IllegalArgumentException if the reservation is unknown, pending,
+     *         cancelled, or already has an invoice.
+     */
     public Invoice createInvoice(String reservationId) {
 
-        Invoice existingInvoice =
-                invoiceRepository.findByReservationId(reservationId)
-                        .orElse(null);
-
-        if (existingInvoice != null) {
+        // Duplicate check first: it is the cheaper lookup, and "already
+        // invoiced" is the more useful answer than "reservation not found" when
+        // a caller retries a create.
+        if (invoiceRepository.findByReservationId(reservationId).isPresent()) {
             throw new IllegalArgumentException(
                     "Invoice already exists for this reservation");
         }
 
-        Reservation reservation =
-                reservationRepository.findById(reservationId)
-                        .orElseThrow(() ->
-                                new IllegalArgumentException(
-                                        "Reservation not found"));
-
-        if (reservation.getStatus() == ReservationStatus.PENDING) {
-            throw new IllegalArgumentException(
-                    "Cannot create invoice for a pending reservation. It must be confirmed by staff first.");
-        }
-
-        if (reservation.getStatus() == ReservationStatus.CANCELLED) {
-            throw new IllegalArgumentException(
-                    "Cannot create invoice for a cancelled reservation.");
-        }
-
-        Room room =
-                roomRepository.findById(reservation.getRoomId())
-                        .orElseThrow(() ->
-                                new IllegalArgumentException(
-                                        "Room not found"));
-
-        long nights =
-                ChronoUnit.DAYS.between(
-                        reservation.getCheckInDate(),
-                        reservation.getCheckOutDate());
-
-        if (nights <= 0) {
-            throw new IllegalArgumentException(
-                    "Reservation must have at least one night");
-        }
-
-        double roomCharge =
-                nights * room.getPricePerNight();
+        Reservation reservation = loadBillableReservation(reservationId);
 
         Instant now = Instant.now();
+        return writeInvoice(
+                UUID.randomUUID().toString(),
+                now,
+                now,
+                reservation,
+                billingService.calculateRoomChargeOnly(reservation));
+    }
 
-        Invoice invoice = new Invoice();
+    /**
+     * Returns the reservation's invoice, creating the room-only version if the
+     * stay does not have one yet. Used by the confirmation flow, which should
+     * never fail just because an invoice is already on file.
+     */
+    public Invoice ensureInvoice(Reservation reservation) {
+        return invoiceRepository.findByReservationId(reservation.getReservationId())
+                .orElseGet(() -> {
+                    Instant now = Instant.now();
+                    return writeInvoice(
+                            UUID.randomUUID().toString(),
+                            now,
+                            now,
+                            reservation,
+                            billingService.calculateRoomChargeOnly(reservation));
+                });
+    }
 
-        invoice.setInvoiceId(UUID.randomUUID().toString());
-        invoice.setReservationId(reservation.getReservationId());
-        invoice.setCustomerUid(reservation.getCustomerUid());
-        invoice.setRoomId(reservation.getRoomId());
+    /**
+     * Reprices the reservation's bill from the charge lines and discount the
+     * desk entered, and stores the result. Passing empty charges and no
+     * discount resets the bill to the room charge alone.
+     */
+    public Invoice applyBill(
+            Reservation reservation,
+            List<AdditionalCharge> charges,
+            DiscountType discountType,
+            Double discountValue) {
 
-        invoice.setRoomCharge(roomCharge);
-        invoice.setAdditionalCharges(0.0);
-        invoice.setDiscount(0.0);
-        invoice.setTotalAmount(roomCharge);
+        Invoice existing = ensureInvoice(reservation);
+        BillBreakdown breakdown =
+                billingService.calculate(reservation, charges, discountType, discountValue);
 
-        invoice.setStatus(InvoiceStatus.UNPAID.name());
+        double alreadyPaid = paymentService != null
+                ? paymentService.getTotalPaidForInvoice(existing.getInvoiceId())
+                : 0.0;
 
-        invoice.setCreatedAt(now);
-        invoice.setUpdatedAt(now);
+        if (breakdown.totalAmount() < alreadyPaid) {
+            throw new IllegalArgumentException(
+                    "Bill total cannot be less than the amount already paid");
+        }
 
-        return invoiceRepository.save(invoice);
+        // Rewrites the existing document in place: repricing a bill must never
+        // leave a second invoice (or an orphaned one) behind.
+        Invoice repriced = writeInvoice(
+                existing.getInvoiceId(),
+                existing.getCreatedAt() != null ? existing.getCreatedAt() : Instant.now(),
+                Instant.now(),
+                reservation,
+                breakdown);
+
+        if (paymentService != null) {
+            paymentService.updateInvoiceStatus(repriced.getInvoiceId());
+        }
+
+        return enrichInvoice(repriced);
     }
 
     public Invoice getInvoiceById(String invoiceId) {
-
-        Invoice invoice = invoiceRepository.findById(invoiceId)
+        return enrichInvoice(invoiceRepository.findById(invoiceId)
                 .orElseThrow(() ->
-                        new IllegalArgumentException(
-                                "Invoice not found"));
-
-        return enrichInvoice(invoice);
+                        new IllegalArgumentException("Invoice not found")));
     }
 
     public List<Invoice> getAllInvoices() {
+
         List<Invoice> invoices = invoiceRepository.findAll();
         if (invoices == null || invoices.isEmpty()) {
             return List.of();
         }
 
-        List<Payment> payments = paymentService.getAllPayments();
-        Map<String, Double> paidByInvoiceId = (payments != null ? payments : List.<Payment>of()).stream()
-                .filter(p -> "COMPLETED".equalsIgnoreCase(p.getStatus()))
-                .filter(p -> p.getAmount() != null && p.getInvoiceId() != null)
-                .collect(Collectors.groupingBy(
-                        Payment::getInvoiceId,
-                        Collectors.summingDouble(Payment::getAmount)
-                ));
+        // One pass over the payment ledger rather than a query per invoice.
+        Map<String, Double> paidByInvoiceId = completedPaymentsByInvoice();
 
-        return invoices.stream()
-                .map(invoice -> {
-                    double paid = paidByInvoiceId.getOrDefault(invoice.getInvoiceId(), 0.0);
-                    invoice.setPaidAmount(paid);
-                    double total = invoice.getTotalAmount() != null ? invoice.getTotalAmount() : 0.0;
-                    invoice.setRemainingAmount(Math.max(0.0, total - paid));
-                    return invoice;
-                })
-                .toList();
-    }
-
-    public List<Invoice> getMyInvoices(String customerUid) {
-        List<Invoice> invoices = invoiceRepository.findByCustomerUid(customerUid);
-        if (invoices == null || invoices.isEmpty()) {
-            return List.of();
-        }
-
-        List<Payment> payments = paymentService.getCustomerPayments(customerUid);
-        Map<String, Double> paidByInvoiceId = (payments != null ? payments : List.<Payment>of()).stream()
-                .filter(p -> "COMPLETED".equalsIgnoreCase(p.getStatus()))
-                .filter(p -> p.getAmount() != null && p.getInvoiceId() != null)
-                .collect(Collectors.groupingBy(
-                        Payment::getInvoiceId,
-                        Collectors.summingDouble(Payment::getAmount)
-                ));
-
-        return invoices.stream()
-                .map(invoice -> {
-                    double paid = paidByInvoiceId.getOrDefault(invoice.getInvoiceId(), 0.0);
-                    invoice.setPaidAmount(paid);
-                    double total = invoice.getTotalAmount() != null ? invoice.getTotalAmount() : 0.0;
-                    invoice.setRemainingAmount(Math.max(0.0, total - paid));
-                    return invoice;
-                })
-                .toList();
+        invoices.forEach(invoice -> applyPaymentTotals(invoice, paidByInvoiceId));
+        return invoices;
     }
 
     public Invoice getInvoiceByReservationId(String reservationId) {
@@ -173,58 +170,31 @@ public class InvoiceService {
     }
 
     public Invoice enrichInvoice(Invoice invoice) {
+
         if (invoice == null) {
             return null;
         }
 
-        double paid = paymentService.getTotalPaidForInvoice(invoice.getInvoiceId());
-        invoice.setPaidAmount(paid);
+        double paid = paymentService != null
+                ? paymentService.getTotalPaidForInvoice(invoice.getInvoiceId())
+                : 0.0;
 
-        double total = invoice.getTotalAmount() != null ? invoice.getTotalAmount() : 0.0;
-        invoice.setRemainingAmount(Math.max(0.0, total - paid));
-
+        applyPaymentTotals(invoice, Map.of(invoice.getInvoiceId(), paid));
         return invoice;
     }
 
-    public Invoice updateInvoiceAmounts(
-            String invoiceId,
-            UpdateInvoiceRequest request) {
-
-        Invoice invoice = getInvoiceById(invoiceId);
-
-        double totalAmount =
-                invoice.getRoomCharge()
-                        + request.additionalCharges()
-                        - request.discount();
-
-        if (totalAmount < 0) {
-            throw new IllegalArgumentException(
-                    "Invoice total cannot be negative");
-        }
-
-        double totalPaid =
-                paymentService.getTotalPaidForInvoice(invoiceId);
-
-        if (totalAmount < totalPaid) {
-            throw new IllegalArgumentException(
-                    "Invoice total cannot be less than the amount already paid");
-        }
-
-        invoiceRepository.updateAmounts(
-                invoiceId,
-                request.additionalCharges(),
-                request.discount(),
-                totalAmount);
-
-        return recalculateInvoiceStatus(invoiceId);
-    }
-
+    /**
+     * Recomputes UNPAID / PARTIALLY_PAID / PAID from what has actually been
+     * settled. The client never sends a status.
+     */
     public Invoice recalculateInvoiceStatus(String invoiceId) {
-        Invoice invoice = getInvoiceById(invoiceId);
-        double totalPaid =
-                paymentService.getTotalPaidForInvoice(invoiceId);
-        double totalAmount =
-                invoice.getTotalAmount() != null ? invoice.getTotalAmount() : 0.0;
+
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));
+
+        double totalPaid = paymentService != null
+                ? paymentService.getTotalPaidForInvoice(invoiceId) : 0.0;
+        double totalAmount = invoice.getTotalAmount() != null ? invoice.getTotalAmount() : 0.0;
 
         InvoiceStatus newStatus;
         if (totalPaid <= 0) {
@@ -240,10 +210,10 @@ public class InvoiceService {
 
     public void deleteInvoice(String invoiceId) {
 
-        Invoice invoice = getInvoiceById(invoiceId);
+        getInvoiceById(invoiceId);
 
-        double totalPaid =
-                paymentService.getTotalPaidForInvoice(invoiceId);
+        double totalPaid = paymentService != null
+                ? paymentService.getTotalPaidForInvoice(invoiceId) : 0.0;
 
         if (totalPaid > 0) {
             throw new IllegalArgumentException(
@@ -251,5 +221,90 @@ public class InvoiceService {
         }
 
         invoiceRepository.delete(invoiceId);
+    }
+
+    // ── Internals ──
+
+    private Reservation loadBillableReservation(String reservationId) {
+
+        Reservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() ->
+                        new IllegalArgumentException("Reservation not found"));
+
+        if (reservation.getStatus() == ReservationStatus.CANCELLED) {
+            throw new IllegalArgumentException(
+                    "Cannot create an invoice for a cancelled reservation.");
+        }
+
+        if (reservation.getStatus() == ReservationStatus.PENDING) {
+            throw new IllegalArgumentException(
+                    "Cannot create an invoice for a pending reservation. It must be confirmed by staff first.");
+        }
+
+        return reservation;
+    }
+
+    private Invoice writeInvoice(
+            String invoiceId,
+            Instant createdAt,
+            Instant updatedAt,
+            Reservation reservation,
+            BillBreakdown breakdown) {
+
+        Room room = roomRepository.findById(reservation.getRoomId()).orElse(null);
+
+        Invoice invoice = new Invoice();
+
+        invoice.setInvoiceId(invoiceId);
+        invoice.setReservationId(reservation.getReservationId());
+        invoice.setRoomId(reservation.getRoomId());
+        invoice.setRoomNumber(room != null ? room.getRoomNumber() : null);
+        invoice.setCustomerName(reservation.getCustomerName());
+
+        invoice.setCheckInDate(reservation.getCheckInDate());
+        invoice.setCheckOutDate(reservation.getCheckOutDate());
+        invoice.setNights(breakdown.nights());
+
+        invoice.setRoomCharge(breakdown.roomCharge());
+        invoice.setAdditionalCharges(breakdown.additionalCharges());
+        invoice.setAdditionalChargesTotal(breakdown.additionalChargesTotal());
+
+        invoice.setDiscountType(breakdown.discountType());
+        invoice.setDiscountValue(breakdown.discountValue());
+        invoice.setDiscountAmount(breakdown.discountAmount());
+
+        invoice.setSubtotal(breakdown.subtotal());
+        invoice.setTaxRate(breakdown.taxRate());
+        invoice.setTaxAmount(breakdown.taxAmount());
+        invoice.setTotalAmount(breakdown.totalAmount());
+
+        invoice.setStatus(InvoiceStatus.UNPAID.name());
+
+        invoice.setCreatedAt(createdAt);
+        invoice.setUpdatedAt(updatedAt);
+
+        return invoiceRepository.save(invoice);
+    }
+
+    private Map<String, Double> completedPaymentsByInvoice() {
+
+        List<Payment> payments = paymentService != null
+                ? paymentService.getAllPayments() : List.of();
+
+        return (payments != null ? payments : List.<Payment>of()).stream()
+                .filter(p -> "COMPLETED".equalsIgnoreCase(p.getStatus()))
+                .filter(p -> p.getAmount() != null && p.getInvoiceId() != null)
+                .collect(Collectors.groupingBy(
+                        Payment::getInvoiceId,
+                        Collectors.summingDouble(Payment::getAmount)));
+    }
+
+    private void applyPaymentTotals(Invoice invoice, Map<String, Double> paidByInvoiceId) {
+
+        double paid = paidByInvoiceId.getOrDefault(invoice.getInvoiceId(), 0.0);
+        double total = invoice.getTotalAmount() != null ? invoice.getTotalAmount() : 0.0;
+
+        invoice.setPaidAmount(paid);
+        invoice.setRemainingAmount(Math.max(0.0, total - paid));
     }
 }

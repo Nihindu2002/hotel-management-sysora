@@ -3,10 +3,10 @@ package com.hotel.hotel_management.reservation;
 import com.hotel.hotel_management.housekeeping.CreateHousekeepingTaskRequest;
 import com.hotel.hotel_management.housekeeping.HousekeepingService;
 import com.hotel.hotel_management.housekeeping.HousekeepingTask;
-import com.hotel.hotel_management.housekeeping.HousekeepingTaskPriority;
 import com.hotel.hotel_management.housekeeping.HousekeepingTaskStatus;
 import com.hotel.hotel_management.housekeeping.HousekeepingTaskType;
 import com.hotel.hotel_management.exception.ConflictException;
+import com.hotel.hotel_management.invoice.Invoice;
 import com.hotel.hotel_management.invoice.InvoiceService;
 import com.hotel.hotel_management.room.Room;
 import com.hotel.hotel_management.room.RoomRepository;
@@ -30,344 +30,493 @@ class ReservationServiceTest {
     private ReservationRepository reservationRepository;
     private RoomRepository roomRepository;
     private HousekeepingService housekeepingService;
+    private InvoiceService invoiceService;
     private ReservationService reservationService;
+
+    private static final String STAFF_UID = "staff-1";
 
     @BeforeEach
     void setUp() {
         reservationRepository = mock(ReservationRepository.class);
         roomRepository = mock(RoomRepository.class);
         housekeepingService = mock(HousekeepingService.class);
+        invoiceService = mock(InvoiceService.class);
 
         reservationService = new ReservationService(
                 reservationRepository,
                 roomRepository,
-                housekeepingService
+                housekeepingService,
+                invoiceService
         );
     }
 
-    @Test
-    void testNormalFlow_Confirm_CheckIn_CheckOut() {
-        String roomId = "room-101";
-        String resId = "res-1";
+    // ── Helpers ──
 
+    private Room room(String roomId, RoomStatus status) {
         Room room = new Room();
         room.setRoomId(roomId);
-        room.setStatus(RoomStatus.AVAILABLE);
+        room.setRoomNumber(roomId.replace("room-", ""));
+        room.setRoomType(RoomType.STANDARD);
+        room.setPricePerNight(10000.0);
+        room.setStatus(status);
+        return room;
+    }
 
+    private Reservation reservation(String resId, String roomId, ReservationStatus status) {
         Reservation reservation = new Reservation();
         reservation.setReservationId(resId);
         reservation.setRoomId(roomId);
-        reservation.setStatus(ReservationStatus.PENDING);
+        reservation.setCustomerName("Nimal Perera");
+        reservation.setCustomerPhone("0771234567");
+        reservation.setStatus(status);
         reservation.setCheckInDate(LocalDate.now().plusDays(1));
         reservation.setCheckOutDate(LocalDate.now().plusDays(3));
+        return reservation;
+    }
+
+    private CreateReservationRequest request(
+            String roomId, LocalDate checkIn, LocalDate checkOut, int guests) {
+        return new CreateReservationRequest(
+                roomId, "Nimal Perera", "0771234567", null, checkIn, checkOut, guests);
+    }
+
+    // ── Booking ──
+
+    @Test
+    void createReservation_ConfirmsImmediatelyAndReservesRoom() {
+        String roomId = "room-201";
+        Room room = room(roomId, RoomStatus.AVAILABLE);
+
+        LocalDate checkIn = LocalDate.now().plusDays(2);
+        LocalDate checkOut = LocalDate.now().plusDays(5);
+
+        when(roomRepository.findById(roomId)).thenReturn(Optional.of(room));
+        when(reservationRepository.findByRoomId(roomId)).thenReturn(Collections.emptyList());
+        when(reservationRepository.save(any(Reservation.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        Reservation created = reservationService.createReservation(
+                request(roomId, checkIn, checkOut, 2), STAFF_UID);
+
+        assertNotNull(created);
+        assertEquals(roomId, created.getRoomId());
+        assertEquals("Nimal Perera", created.getCustomerName());
+        assertEquals("0771234567", created.getCustomerPhone());
+        assertEquals(STAFF_UID, created.getCreatedBy());
+        assertEquals(checkIn, created.getCheckInDate());
+        assertEquals(checkOut, created.getCheckOutDate());
+        assertEquals(2, created.getNumberOfGuests());
+        // No approval step: a booking taken at the desk is confirmed on the spot.
+        assertEquals(ReservationStatus.CONFIRMED, created.getStatus());
+        assertNotNull(created.getReservationId());
+
+        verify(roomRepository).updateStatus(roomId, RoomStatus.RESERVED);
+        // The bill is opened up front so there is always one to settle.
+        verify(invoiceService).ensureInvoice(created);
+    }
+
+    @Test
+    void createReservation_RejectsMaintenanceRoom() {
+        String roomId = "room-202";
+        Room room = room(roomId, RoomStatus.MAINTENANCE);
+
+        when(roomRepository.findById(roomId)).thenReturn(Optional.of(room));
+
+        assertThrows(ConflictException.class, () -> reservationService.createReservation(
+                request(roomId, LocalDate.now().plusDays(1), LocalDate.now().plusDays(3), 2),
+                STAFF_UID));
+
+        verify(reservationRepository, never()).save(any(Reservation.class));
+    }
+
+    @Test
+    void createReservation_RejectsCleaningRoom() {
+        String roomId = "room-202b";
+        Room room = room(roomId, RoomStatus.CLEANING);
+
+        when(roomRepository.findById(roomId)).thenReturn(Optional.of(room));
+
+        assertThrows(ConflictException.class, () -> reservationService.createReservation(
+                request(roomId, LocalDate.now().plusDays(1), LocalDate.now().plusDays(3), 2),
+                STAFF_UID));
+    }
+
+    @Test
+    void createReservation_RejectsOverlappingReservation() {
+        String roomId = "room-203";
+        Room room = room(roomId, RoomStatus.AVAILABLE);
+
+        Reservation existing = reservation("ex-1", roomId, ReservationStatus.CONFIRMED);
+        existing.setCheckInDate(LocalDate.now().plusDays(2));
+        existing.setCheckOutDate(LocalDate.now().plusDays(6));
+
+        when(roomRepository.findById(roomId)).thenReturn(Optional.of(room));
+        when(reservationRepository.findByRoomId(roomId)).thenReturn(List.of(existing));
+
+        assertThrows(ConflictException.class, () -> reservationService.createReservation(
+                request(roomId, LocalDate.now().plusDays(3), LocalDate.now().plusDays(5), 2),
+                STAFF_UID));
+
+        verify(reservationRepository, never()).save(any(Reservation.class));
+    }
+
+    @Test
+    void createReservation_RejectsGuestsBeyondCapacity() {
+        String roomId = "room-204";
+        Room room = room(roomId, RoomStatus.AVAILABLE); // STANDARD sleeps 2
+
+        when(roomRepository.findById(roomId)).thenReturn(Optional.of(room));
+
+        assertThrows(IllegalArgumentException.class, () -> reservationService.createReservation(
+                request(roomId, LocalDate.now().plusDays(1), LocalDate.now().plusDays(3), 3),
+                STAFF_UID));
+    }
+
+    @Test
+    void createReservation_RejectsPastCheckInAndInvertedDates() {
+        String roomId = "room-205";
+        Room room = room(roomId, RoomStatus.AVAILABLE);
+        when(roomRepository.findById(roomId)).thenReturn(Optional.of(room));
+
+        assertThrows(IllegalArgumentException.class, () -> reservationService.createReservation(
+                request(roomId, LocalDate.now().minusDays(1), LocalDate.now().plusDays(3), 1),
+                STAFF_UID));
+
+        assertThrows(IllegalArgumentException.class, () -> reservationService.createReservation(
+                request(roomId, LocalDate.now().plusDays(3), LocalDate.now().plusDays(2), 1),
+                STAFF_UID));
+    }
+
+    // ── Check-in ──
+
+    @Test
+    void checkIn_MarksReservationAndRoom() {
+        String roomId = "room-301";
+        String resId = "res-301";
+        Room room = room(roomId, RoomStatus.RESERVED);
+        Reservation reservation = reservation(resId, roomId, ReservationStatus.CONFIRMED);
 
         when(reservationRepository.findById(resId)).thenReturn(Optional.of(reservation));
         when(roomRepository.findById(roomId)).thenReturn(Optional.of(room));
-        when(reservationRepository.findByRoomId(roomId)).thenReturn(List.of(reservation));
+        when(housekeepingService.getTasksByRoomId(roomId)).thenReturn(Collections.emptyList());
         when(reservationRepository.updateStatus(eq(resId), any(ReservationStatus.class)))
-                .thenAnswer(inv -> {
-                    reservation.setStatus(inv.getArgument(1));
+                .thenAnswer(invocation -> {
+                    reservation.setStatus(invocation.getArgument(1));
                     return reservation;
                 });
 
-        // 1. Confirm: Room becomes RESERVED
-        Reservation confirmed = reservationService.confirmReservation(resId);
-        assertEquals(ReservationStatus.CONFIRMED, confirmed.getStatus());
-        verify(roomRepository).updateStatus(roomId, RoomStatus.RESERVED);
-
-        // Update room status for next step
-        room.setStatus(RoomStatus.RESERVED);
-
-        // 2. Check-In: Room becomes OCCUPIED
         Reservation checkedIn = reservationService.checkInReservation(resId);
+
         assertEquals(ReservationStatus.CHECKED_IN, checkedIn.getStatus());
         verify(roomRepository).updateStatus(roomId, RoomStatus.OCCUPIED);
+    }
 
-        // Update room status for next step
-        room.setStatus(RoomStatus.OCCUPIED);
+    @Test
+    void checkIn_RejectsUnconfirmedReservation() {
+        String resId = "res-302";
+        Reservation reservation = reservation(resId, "room-302", ReservationStatus.CONFIRMED);
+        reservation.setStatus(ReservationStatus.CHECKED_OUT);
+
+        when(reservationRepository.findById(resId)).thenReturn(Optional.of(reservation));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> reservationService.checkInReservation(resId));
+        assertEquals("Only confirmed reservations can be checked in", ex.getMessage());
+
+        verify(reservationRepository, never())
+                .updateStatus(anyString(), any(ReservationStatus.class));
+    }
+
+    @Test
+    void checkIn_RejectsAlreadyCheckedInReservation() {
+        String resId = "res-302b";
+        Reservation reservation = reservation(resId, "room-302b", ReservationStatus.CHECKED_IN);
+
+        when(reservationRepository.findById(resId)).thenReturn(Optional.of(reservation));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> reservationService.checkInReservation(resId));
+        assertEquals("This reservation has already been checked in", ex.getMessage());
+    }
+
+    @Test
+    void checkIn_RejectsRoomBeingCleaned() {
+        String roomId = "room-303";
+        String resId = "res-303";
+        Room room = room(roomId, RoomStatus.CLEANING);
+        Reservation reservation = reservation(resId, roomId, ReservationStatus.CONFIRMED);
+
+        when(reservationRepository.findById(resId)).thenReturn(Optional.of(reservation));
+        when(roomRepository.findById(roomId)).thenReturn(Optional.of(room));
+
+        ConflictException ex = assertThrows(ConflictException.class,
+                () -> reservationService.checkInReservation(resId));
+        assertEquals(
+                "Room is currently being cleaned and cannot be checked in until housekeeping is completed",
+                ex.getMessage());
+    }
+
+    @Test
+    void checkIn_RejectsRoomUnderMaintenance() {
+        String roomId = "room-304";
+        String resId = "res-304";
+        Room room = room(roomId, RoomStatus.MAINTENANCE);
+        Reservation reservation = reservation(resId, roomId, ReservationStatus.CONFIRMED);
+
+        when(reservationRepository.findById(resId)).thenReturn(Optional.of(reservation));
+        when(roomRepository.findById(roomId)).thenReturn(Optional.of(room));
+
+        ConflictException ex = assertThrows(ConflictException.class,
+                () -> reservationService.checkInReservation(resId));
+        assertEquals("Room is under maintenance and cannot be checked in", ex.getMessage());
+    }
+
+    @Test
+    void checkIn_RejectsRoomWithOutstandingCleaningTask() {
+        String roomId = "room-305";
+        String resId = "res-305";
+        Room room = room(roomId, RoomStatus.RESERVED);
+        Reservation reservation = reservation(resId, roomId, ReservationStatus.CONFIRMED);
+
+        HousekeepingTask activeTask = new HousekeepingTask();
+        activeTask.setRoomId(roomId);
+        activeTask.setStatus(HousekeepingTaskStatus.IN_PROGRESS);
+
+        when(reservationRepository.findById(resId)).thenReturn(Optional.of(reservation));
+        when(roomRepository.findById(roomId)).thenReturn(Optional.of(room));
+        when(housekeepingService.getTasksByRoomId(roomId)).thenReturn(List.of(activeTask));
+
+        assertThrows(ConflictException.class, () -> reservationService.checkInReservation(resId));
+    }
+
+    // ── Checkout ──
+
+    @Test
+    void checkOut_RequiresABillToExist() {
+        String roomId = "room-401";
+        String resId = "res-401";
+        Reservation reservation = reservation(resId, roomId, ReservationStatus.CHECKED_IN);
+
+        when(reservationRepository.findById(resId)).thenReturn(Optional.of(reservation));
+        when(invoiceService.getInvoiceByReservationId(resId)).thenReturn(null);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> reservationService.checkOutReservation(resId));
+        assertEquals("Generate the final bill before checking out", ex.getMessage());
+
+        verify(reservationRepository, never())
+                .updateStatus(anyString(), any(ReservationStatus.class));
+    }
+
+    @Test
+    void checkOut_MovesStayToCleaningAndRaisesTask() {
+        String roomId = "room-402";
+        String resId = "res-402";
+        Reservation reservation = reservation(resId, roomId, ReservationStatus.CHECKED_IN);
+
+        when(reservationRepository.findById(resId)).thenReturn(Optional.of(reservation));
+        when(invoiceService.getInvoiceByReservationId(resId)).thenReturn(new Invoice());
+        when(reservationRepository.updateStatus(eq(resId), any(ReservationStatus.class)))
+                .thenAnswer(invocation -> {
+                    reservation.setStatus(invocation.getArgument(1));
+                    return reservation;
+                });
         when(housekeepingService.getTasksByRoomId(roomId)).thenReturn(Collections.emptyList());
 
-        // 3. Check-Out: Room becomes CLEANING and Housekeeping task is created
-        Reservation checkedOut = reservationService.checkOutReservation(resId);
-        assertEquals(ReservationStatus.CHECKED_OUT, checkedOut.getStatus());
+        CheckoutResponse response = reservationService.checkOutReservation(resId);
+
+        assertEquals(ReservationStatus.CHECKED_OUT, response.reservation().getStatus());
+        assertNotNull(response.invoice());
         verify(roomRepository).updateStatus(roomId, RoomStatus.CLEANING);
         verify(housekeepingService).createTask(any(CreateHousekeepingTaskRequest.class));
     }
 
     @Test
-    void testCancellation_ConfirmedReservationRevertsRoomToAvailable() {
-        String roomId = "room-102";
-        String resId = "res-2";
+    void checkOut_DoesNotRaiseASecondCleaningTaskWhenOneIsOutstanding() {
+        String roomId = "room-403";
+        String resId = "res-403";
+        Reservation reservation = reservation(resId, roomId, ReservationStatus.CHECKED_IN);
 
-        Room room = new Room();
-        room.setRoomId(roomId);
-        room.setStatus(RoomStatus.RESERVED);
+        HousekeepingTask existing = new HousekeepingTask();
+        existing.setRoomId(roomId);
+        existing.setTaskType(HousekeepingTaskType.CHECKOUT_CLEANING);
+        existing.setStatus(HousekeepingTaskStatus.PENDING);
 
-        Reservation reservation = new Reservation();
-        reservation.setReservationId(resId);
-        reservation.setCustomerUid("cust-1");
-        reservation.setRoomId(roomId);
-        reservation.setStatus(ReservationStatus.CONFIRMED);
+        when(reservationRepository.findById(resId)).thenReturn(Optional.of(reservation));
+        when(invoiceService.getInvoiceByReservationId(resId)).thenReturn(new Invoice());
+        when(reservationRepository.updateStatus(resId, ReservationStatus.CHECKED_OUT))
+                .thenReturn(reservation);
+        when(housekeepingService.getTasksByRoomId(roomId)).thenReturn(List.of(existing));
+
+        reservationService.checkOutReservation(resId);
+
+        verify(roomRepository).updateStatus(roomId, RoomStatus.CLEANING);
+        verify(housekeepingService, never()).createTask(any(CreateHousekeepingTaskRequest.class));
+    }
+
+    @Test
+    void checkOut_IgnoresACompletedTaskFromAnEarlierStay() {
+        String roomId = "room-404";
+        String resId = "res-404";
+        Reservation reservation = reservation(resId, roomId, ReservationStatus.CHECKED_IN);
+
+        HousekeepingTask completed = new HousekeepingTask();
+        completed.setRoomId(roomId);
+        completed.setTaskType(HousekeepingTaskType.CHECKOUT_CLEANING);
+        completed.setStatus(HousekeepingTaskStatus.COMPLETED);
+
+        when(reservationRepository.findById(resId)).thenReturn(Optional.of(reservation));
+        when(invoiceService.getInvoiceByReservationId(resId)).thenReturn(new Invoice());
+        when(reservationRepository.updateStatus(resId, ReservationStatus.CHECKED_OUT))
+                .thenReturn(reservation);
+        when(housekeepingService.getTasksByRoomId(roomId)).thenReturn(List.of(completed));
+
+        reservationService.checkOutReservation(resId);
+
+        verify(housekeepingService).createTask(any(CreateHousekeepingTaskRequest.class));
+    }
+
+    @Test
+    void checkOut_RejectsStayThatIsNotCheckedIn() {
+        String resId = "res-405";
+        Reservation reservation = reservation(resId, "room-405", ReservationStatus.CONFIRMED);
+
+        when(reservationRepository.findById(resId)).thenReturn(Optional.of(reservation));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> reservationService.checkOutReservation(resId));
+        assertEquals("Only checked-in reservations can be checked out", ex.getMessage());
+    }
+
+    @Test
+    void generateFinalBill_RejectsStayThatIsNotCheckedIn() {
+        String resId = "res-406";
+        Reservation reservation = reservation(resId, "room-406", ReservationStatus.CONFIRMED);
+
+        when(reservationRepository.findById(resId)).thenReturn(Optional.of(reservation));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> reservationService.generateFinalBill(resId, null));
+
+        verify(invoiceService, never()).applyBill(any(), any(), any(), any());
+    }
+
+    // ── Cancellation ──
+
+    @Test
+    void cancel_ReturnsRoomToAvailableWhenNoOtherConfirmedStayHoldsIt() {
+        String roomId = "room-501";
+        String resId = "res-501";
+        Room room = room(roomId, RoomStatus.RESERVED);
+        Reservation reservation = reservation(resId, roomId, ReservationStatus.CONFIRMED);
 
         when(reservationRepository.findById(resId)).thenReturn(Optional.of(reservation));
         when(roomRepository.findById(roomId)).thenReturn(Optional.of(room));
         when(reservationRepository.findByRoomId(roomId)).thenReturn(List.of(reservation));
         when(reservationRepository.updateStatus(resId, ReservationStatus.CANCELLED))
-                .thenAnswer(inv -> {
+                .thenAnswer(invocation -> {
                     reservation.setStatus(ReservationStatus.CANCELLED);
                     return reservation;
                 });
 
-        reservationService.cancelReservation(resId, "cust-1");
+        reservationService.cancelReservationByStaff(resId);
+
         verify(roomRepository).updateStatus(roomId, RoomStatus.AVAILABLE);
     }
 
     @Test
-    void testCancellation_PendingReservationDoesNotChangeRoomStatus() {
-        String roomId = "room-103";
-        String resId = "res-3";
+    void cancel_LeavesRoomReservedWhenAnotherStayStillHoldsIt() {
+        String roomId = "room-502";
+        String resId1 = "res-502a";
+        Room room = room(roomId, RoomStatus.RESERVED);
 
-        Room room = new Room();
-        room.setRoomId(roomId);
-        room.setStatus(RoomStatus.AVAILABLE);
+        Reservation target = reservation(resId1, roomId, ReservationStatus.CONFIRMED);
+        Reservation other = reservation("res-502b", roomId, ReservationStatus.CONFIRMED);
 
-        Reservation reservation = new Reservation();
-        reservation.setReservationId(resId);
-        reservation.setCustomerUid("cust-1");
-        reservation.setRoomId(roomId);
-        reservation.setStatus(ReservationStatus.PENDING);
-
-        when(reservationRepository.findById(resId)).thenReturn(Optional.of(reservation));
+        when(reservationRepository.findById(resId1)).thenReturn(Optional.of(target));
         when(roomRepository.findById(roomId)).thenReturn(Optional.of(room));
-        when(reservationRepository.findByRoomId(roomId)).thenReturn(List.of(reservation));
-        when(reservationRepository.updateStatus(resId, ReservationStatus.CANCELLED))
-                .thenAnswer(inv -> {
-                    reservation.setStatus(ReservationStatus.CANCELLED);
-                    return reservation;
-                });
+        when(reservationRepository.findByRoomId(roomId)).thenReturn(List.of(target, other));
+        when(reservationRepository.updateStatus(resId1, ReservationStatus.CANCELLED))
+                .thenReturn(target);
 
-        reservationService.cancelReservation(resId, "cust-1");
+        reservationService.cancelReservationByStaff(resId1);
+
         verify(roomRepository, never()).updateStatus(anyString(), any(RoomStatus.class));
     }
 
     @Test
-    void testCheckIn_FailsWhenRoomCleaning() {
-        String roomId = "room-104";
-        String resId = "res-4";
-
-        Room room = new Room();
-        room.setRoomId(roomId);
-        room.setStatus(RoomStatus.CLEANING); // Room is cleaning!
-
-        Reservation reservation = new Reservation();
-        reservation.setReservationId(resId);
-        reservation.setRoomId(roomId);
-        reservation.setStatus(ReservationStatus.CONFIRMED);
+    void cancel_RejectsStayThatHasAlreadyBeenCheckedIn() {
+        String resId = "res-503";
+        Reservation reservation = reservation(resId, "room-503", ReservationStatus.CHECKED_IN);
 
         when(reservationRepository.findById(resId)).thenReturn(Optional.of(reservation));
-        when(roomRepository.findById(roomId)).thenReturn(Optional.of(room));
 
-        ConflictException ex = assertThrows(
-                ConflictException.class,
-                () -> reservationService.checkInReservation(resId)
-        );
-        assertEquals("Room is currently being cleaned and cannot be checked in until housekeeping is completed", ex.getMessage());
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> reservationService.cancelReservationByStaff(resId));
+        assertEquals("This reservation cannot be cancelled", ex.getMessage());
+    }
+
+    // ── Availability ──
+
+    @Test
+    void isRoomAvailable_BlocksOverlappingDates() {
+        String roomId = "room-601";
+        Room room = room(roomId, RoomStatus.AVAILABLE);
+
+        Reservation existing = reservation("p-1", roomId, ReservationStatus.CONFIRMED);
+        existing.setCheckInDate(LocalDate.now().plusDays(1));
+        existing.setCheckOutDate(LocalDate.now().plusDays(3));
+
+        when(roomRepository.findById(roomId)).thenReturn(Optional.of(room));
+        when(reservationRepository.findByRoomId(roomId)).thenReturn(List.of(existing));
+
+        assertFalse(reservationService.isRoomAvailable(
+                roomId, LocalDate.now().plusDays(1), LocalDate.now().plusDays(3)));
+
+        assertTrue(reservationService.isRoomAvailable(
+                roomId, LocalDate.now().plusDays(5), LocalDate.now().plusDays(7)));
     }
 
     @Test
-    void testCheckIn_SuccessWhenRoomAvailable() {
-        String roomId = "room-104b";
-        String resId = "res-4b";
+    void isRoomAvailable_RefusesMaintenanceAndOccupiedRooms() {
+        String maintenanceId = "room-602";
+        String occupiedId = "room-603";
 
-        Room room = new Room();
-        room.setRoomId(roomId);
-        room.setStatus(RoomStatus.AVAILABLE);
+        when(roomRepository.findById(maintenanceId))
+                .thenReturn(Optional.of(room(maintenanceId, RoomStatus.MAINTENANCE)));
+        when(roomRepository.findById(occupiedId))
+                .thenReturn(Optional.of(room(occupiedId, RoomStatus.OCCUPIED)));
 
-        Reservation reservation = new Reservation();
-        reservation.setReservationId(resId);
-        reservation.setRoomId(roomId);
-        reservation.setStatus(ReservationStatus.CONFIRMED);
-
-        when(reservationRepository.findById(resId)).thenReturn(Optional.of(reservation));
-        when(roomRepository.findById(roomId)).thenReturn(Optional.of(room));
-        when(reservationRepository.updateStatus(resId, ReservationStatus.CHECKED_IN)).thenReturn(reservation);
-
-        Reservation checkedIn = reservationService.checkInReservation(resId);
-        assertNotNull(checkedIn);
-        verify(roomRepository).updateStatus(roomId, RoomStatus.OCCUPIED);
+        assertFalse(reservationService.isRoomAvailable(
+                maintenanceId, LocalDate.now().plusDays(1), LocalDate.now().plusDays(2)));
+        assertFalse(reservationService.isRoomAvailable(
+                occupiedId, LocalDate.now().plusDays(1), LocalDate.now().plusDays(2)));
     }
 
     @Test
-    void testConfirm_DoubleBookingRejected() {
-        String roomId = "room-105";
-        String resId1 = "res-5a";
-        String resId2 = "res-5b";
-
-        Room room = new Room();
-        room.setRoomId(roomId);
-        room.setStatus(RoomStatus.RESERVED); // Room already reserved by resId1
-
-        Reservation res1 = new Reservation();
-        res1.setReservationId(resId1);
-        res1.setRoomId(roomId);
-        res1.setStatus(ReservationStatus.CONFIRMED);
-        res1.setCheckInDate(LocalDate.now().plusDays(1));
-        res1.setCheckOutDate(LocalDate.now().plusDays(4));
-
-        Reservation res2 = new Reservation();
-        res2.setReservationId(resId2);
-        res2.setRoomId(roomId);
-        res2.setStatus(ReservationStatus.PENDING);
-        res2.setCheckInDate(LocalDate.now().plusDays(2));
-        res2.setCheckOutDate(LocalDate.now().plusDays(5));
-
-        when(reservationRepository.findById(resId2)).thenReturn(Optional.of(res2));
-        when(roomRepository.findById(roomId)).thenReturn(Optional.of(room));
-        when(reservationRepository.findByRoomId(roomId)).thenReturn(List.of(res1, res2));
-
-        IllegalArgumentException ex = assertThrows(
-                IllegalArgumentException.class,
-                () -> reservationService.confirmReservation(resId2)
-        );
-        assertEquals("Room is already reserved for the selected dates", ex.getMessage());
-    }
-
-    @Test
-    void testCheckOut_DuplicateTaskPrevented() {
-        String roomId = "room-106";
-        String resId = "res-6";
-
-        Room room = new Room();
-        room.setRoomId(roomId);
-        room.setStatus(RoomStatus.OCCUPIED);
-
-        Reservation reservation = new Reservation();
-        reservation.setReservationId(resId);
-        reservation.setRoomId(roomId);
-        reservation.setStatus(ReservationStatus.CHECKED_IN);
-
-        HousekeepingTask existingTask = new HousekeepingTask();
-        existingTask.setRoomId(roomId);
-        existingTask.setTaskType(HousekeepingTaskType.CHECKOUT_CLEANING);
-        existingTask.setStatus(HousekeepingTaskStatus.PENDING); // Active task already exists!
-
-        when(reservationRepository.findById(resId)).thenReturn(Optional.of(reservation));
-        when(roomRepository.findById(roomId)).thenReturn(Optional.of(room));
-        when(reservationRepository.updateStatus(resId, ReservationStatus.CHECKED_OUT)).thenReturn(reservation);
-        when(housekeepingService.getTasksByRoomId(roomId)).thenReturn(List.of(existingTask));
-
-        reservationService.checkOutReservation(resId);
-
-        verify(roomRepository).updateStatus(roomId, RoomStatus.CLEANING);
-        verify(housekeepingService, never()).createTask(any(CreateHousekeepingTaskRequest.class));
-    }
-
-    @Test
-    void testCheckOut_ActiveStayOverTaskPreventsConflict() {
-        String roomId = "room-106b";
-        String resId = "res-6b";
-
-        Room room = new Room();
-        room.setRoomId(roomId);
-        room.setStatus(RoomStatus.OCCUPIED);
-
-        Reservation reservation = new Reservation();
-        reservation.setReservationId(resId);
-        reservation.setRoomId(roomId);
-        reservation.setStatus(ReservationStatus.CHECKED_IN);
-
-        HousekeepingTask stayOverTask = new HousekeepingTask();
-        stayOverTask.setRoomId(roomId);
-        stayOverTask.setTaskType(HousekeepingTaskType.REGULAR_CLEANING);
-        stayOverTask.setStatus(HousekeepingTaskStatus.IN_PROGRESS);
-
-        when(reservationRepository.findById(resId)).thenReturn(Optional.of(reservation));
-        when(roomRepository.findById(roomId)).thenReturn(Optional.of(room));
-        when(reservationRepository.updateStatus(resId, ReservationStatus.CHECKED_OUT)).thenReturn(reservation);
-        when(housekeepingService.getTasksByRoomId(roomId)).thenReturn(List.of(stayOverTask));
-
-        reservationService.checkOutReservation(resId);
-
-        verify(roomRepository).updateStatus(roomId, RoomStatus.CLEANING);
-        verify(housekeepingService, never()).createTask(any(CreateHousekeepingTaskRequest.class));
-    }
-
-    @Test
-    void testIsRoomAvailable_PendingReservationBlocksOverlappingDates() {
-        String roomId = "room-107";
-
-        Room room = new Room();
-        room.setRoomId(roomId);
-        room.setStatus(RoomStatus.AVAILABLE);
-
-        Reservation pendingRes = new Reservation();
-        pendingRes.setReservationId("p-1");
-        pendingRes.setRoomId(roomId);
-        pendingRes.setStatus(ReservationStatus.PENDING);
-        pendingRes.setCheckInDate(LocalDate.now().plusDays(1));
-        pendingRes.setCheckOutDate(LocalDate.now().plusDays(3));
-
-        when(roomRepository.findById(roomId)).thenReturn(Optional.of(room));
-        when(reservationRepository.findByRoomId(roomId)).thenReturn(List.of(pendingRes));
-
-        // Overlapping dates should be blocked
-        boolean availableOverlapping = reservationService.isRoomAvailable(
-                roomId,
-                LocalDate.now().plusDays(1),
-                LocalDate.now().plusDays(3)
-        );
-        assertFalse(availableOverlapping);
-
-        // Non-overlapping dates should be available
-        boolean availableOtherDates = reservationService.isRoomAvailable(
-                roomId,
-                LocalDate.now().plusDays(5),
-                LocalDate.now().plusDays(7)
-        );
-        assertTrue(availableOtherDates);
-    }
-
-    @Test
-    void testGetAvailableRooms_FiltersUnavailableAndConflictingRooms() {
-        Room room1 = new Room();
-        room1.setRoomId("room-1");
-        room1.setStatus(RoomStatus.AVAILABLE);
-
-        Room room2 = new Room();
-        room2.setRoomId("room-2");
-        room2.setStatus(RoomStatus.OCCUPIED);
-
-        Room room3 = new Room();
-        room3.setRoomId("room-3");
-        room3.setStatus(RoomStatus.AVAILABLE);
+    void getAvailableRooms_FiltersUnavailableAndConflictingRooms() {
+        Room free = room("room-1", RoomStatus.AVAILABLE);
+        Room occupied = room("room-2", RoomStatus.OCCUPIED);
+        Room conflicting = room("room-3", RoomStatus.AVAILABLE);
 
         LocalDate checkIn = LocalDate.now().plusDays(2);
         LocalDate checkOut = LocalDate.now().plusDays(5);
 
-        Reservation confirmedRes = new Reservation();
-        confirmedRes.setReservationId("res-c");
-        confirmedRes.setRoomId("room-3");
-        confirmedRes.setStatus(ReservationStatus.CONFIRMED);
-        confirmedRes.setCheckInDate(LocalDate.now().plusDays(3));
-        confirmedRes.setCheckOutDate(LocalDate.now().plusDays(6));
+        Reservation clash = reservation("res-c", "room-3", ReservationStatus.CONFIRMED);
+        clash.setCheckInDate(LocalDate.now().plusDays(3));
+        clash.setCheckOutDate(LocalDate.now().plusDays(6));
 
-        when(roomRepository.findAll()).thenReturn(List.of(room1, room2, room3));
-        when(roomRepository.findById("room-1")).thenReturn(Optional.of(room1));
-        when(roomRepository.findById("room-2")).thenReturn(Optional.of(room2));
-        when(roomRepository.findById("room-3")).thenReturn(Optional.of(room3));
+        when(roomRepository.findAll()).thenReturn(List.of(free, occupied, conflicting));
+        when(reservationRepository.findAll()).thenReturn(List.of(clash));
 
-        when(reservationRepository.findByRoomId("room-1")).thenReturn(Collections.emptyList());
-        when(reservationRepository.findByRoomId("room-3")).thenReturn(List.of(confirmedRes));
-        when(reservationRepository.findAll()).thenReturn(List.of(confirmedRes));
+        List<Room> available = reservationService.getAvailableRooms(checkIn, checkOut, 2);
 
-        List<Room> availableRooms = reservationService.getAvailableRooms(checkIn, checkOut, 2);
-
-        assertEquals(1, availableRooms.size());
-        assertEquals("room-1", availableRooms.get(0).getRoomId());
+        assertEquals(1, available.size());
+        assertEquals("room-1", available.get(0).getRoomId());
     }
 
     @Test
-    void testGetAvailableRooms_ThrowsOnInvalidDates() {
+    void getAvailableRooms_ThrowsOnInvalidDates() {
         assertThrows(IllegalArgumentException.class, () ->
                 reservationService.getAvailableRooms(null, LocalDate.now().plusDays(1), 1));
 
@@ -376,221 +525,125 @@ class ReservationServiceTest {
 
         assertThrows(IllegalArgumentException.class, () ->
                 reservationService.getAvailableRooms(
-                        LocalDate.now().minusDays(1),
-                        LocalDate.now().plusDays(2),
-                        1));
+                        LocalDate.now().minusDays(1), LocalDate.now().plusDays(2), 1));
 
         assertThrows(IllegalArgumentException.class, () ->
                 reservationService.getAvailableRooms(
-                        LocalDate.now().plusDays(3),
-                        LocalDate.now().plusDays(2),
-                        1));
+                        LocalDate.now().plusDays(3), LocalDate.now().plusDays(2), 1));
     }
 
-    @Test
-    void testCreateReservation_Success() {
-        String roomId = "room-201";
-        String customerUid = "cust-123";
-
-        Room room = new Room();
-        room.setRoomId(roomId);
-        room.setRoomType(RoomType.STANDARD);
-        room.setStatus(RoomStatus.AVAILABLE);
-
-        LocalDate checkIn = LocalDate.now().plusDays(2);
-        LocalDate checkOut = LocalDate.now().plusDays(5);
-        CreateReservationRequest request = new CreateReservationRequest(roomId, checkIn, checkOut, 2);
-
-        when(roomRepository.findById(roomId)).thenReturn(Optional.of(room));
-        when(reservationRepository.findByRoomId(roomId)).thenReturn(Collections.emptyList());
-        when(reservationRepository.save(any(Reservation.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        Reservation created = reservationService.createReservation(customerUid, request);
-
-        assertNotNull(created);
-        assertEquals(roomId, created.getRoomId());
-        assertEquals(customerUid, created.getCustomerUid());
-        assertEquals(checkIn, created.getCheckInDate());
-        assertEquals(checkOut, created.getCheckOutDate());
-        assertEquals(2, created.getNumberOfGuests());
-        assertEquals(ReservationStatus.PENDING, created.getStatus());
-        assertNotNull(created.getReservationId());
-        verify(reservationRepository).save(any(Reservation.class));
-    }
+    // ── Legacy PENDING confirmation ──
 
     @Test
-    void testCreateReservation_FailsWhenRoomInMaintenance() {
-        String roomId = "room-202";
-        Room room = new Room();
-        room.setRoomId(roomId);
-        room.setStatus(RoomStatus.MAINTENANCE);
-
-        CreateReservationRequest request = new CreateReservationRequest(
-                roomId,
-                LocalDate.now().plusDays(1),
-                LocalDate.now().plusDays(3),
-                2);
-
-        when(roomRepository.findById(roomId)).thenReturn(Optional.of(room));
-
-        assertThrows(ConflictException.class, () ->
-                reservationService.createReservation("cust-1", request));
-    }
-
-    @Test
-    void testCreateReservation_FailsWhenDatesOverlap() {
-        String roomId = "room-203";
-        Room room = new Room();
-        room.setRoomId(roomId);
-        room.setRoomType(RoomType.DELUXE);
-        room.setStatus(RoomStatus.AVAILABLE);
-
-        Reservation existing = new Reservation();
-        existing.setReservationId("ex-1");
-        existing.setRoomId(roomId);
-        existing.setStatus(ReservationStatus.CONFIRMED);
-        existing.setCheckInDate(LocalDate.now().plusDays(2));
-        existing.setCheckOutDate(LocalDate.now().plusDays(6));
-
-        CreateReservationRequest request = new CreateReservationRequest(
-                roomId,
-                LocalDate.now().plusDays(3),
-                LocalDate.now().plusDays(5),
-                2);
-
-        when(roomRepository.findById(roomId)).thenReturn(Optional.of(room));
-        when(reservationRepository.findByRoomId(roomId)).thenReturn(List.of(existing));
-
-        assertThrows(ConflictException.class, () ->
-                reservationService.createReservation("cust-1", request));
-    }
-
-    @Test
-    void testCreateReservation_FailsWhenGuestsExceedCapacity() {
-        String roomId = "room-204";
-        Room room = new Room();
-        room.setRoomId(roomId);
-        room.setRoomType(RoomType.STANDARD); // max capacity 2
-        room.setStatus(RoomStatus.AVAILABLE);
-
-        CreateReservationRequest request = new CreateReservationRequest(
-                roomId,
-                LocalDate.now().plusDays(1),
-                LocalDate.now().plusDays(3),
-                3); // 3 guests exceeds capacity of 2
-
-        when(roomRepository.findById(roomId)).thenReturn(Optional.of(room));
-
-        assertThrows(IllegalArgumentException.class, () ->
-                reservationService.createReservation("cust-1", request));
-    }
-
-    @Test
-    void testConfirm_AutoCreatesInvoice() {
-        InvoiceService mockInvoiceService = mock(InvoiceService.class);
-        ReservationService serviceWithInvoice = new ReservationService(
-                reservationRepository, roomRepository, housekeepingService, mockInvoiceService);
-
-        String roomId = "room-inv";
-        String resId = "res-inv";
-
-        Room room = new Room();
-        room.setRoomId(roomId);
-        room.setStatus(RoomStatus.AVAILABLE);
-
-        Reservation reservation = new Reservation();
-        reservation.setReservationId(resId);
-        reservation.setRoomId(roomId);
-        reservation.setStatus(ReservationStatus.PENDING);
-        reservation.setCheckInDate(LocalDate.now().plusDays(1));
-        reservation.setCheckOutDate(LocalDate.now().plusDays(3));
+    void confirm_LegacyPendingReservation_ReservesRoomAndOpensInvoice() {
+        String roomId = "room-701";
+        String resId = "res-701";
+        Room room = room(roomId, RoomStatus.AVAILABLE);
+        Reservation reservation = reservation(resId, roomId, ReservationStatus.PENDING);
 
         when(reservationRepository.findById(resId)).thenReturn(Optional.of(reservation));
         when(roomRepository.findById(roomId)).thenReturn(Optional.of(room));
         when(reservationRepository.findByRoomId(roomId)).thenReturn(List.of(reservation));
-        when(reservationRepository.updateStatus(eq(resId), eq(ReservationStatus.CONFIRMED))).thenReturn(reservation);
+        when(reservationRepository.updateStatus(resId, ReservationStatus.CONFIRMED))
+                .thenReturn(reservation);
 
-        serviceWithInvoice.confirmReservation(resId);
+        reservationService.confirmReservation(resId);
 
-        verify(mockInvoiceService).createInvoice(resId);
+        verify(roomRepository).updateStatus(roomId, RoomStatus.RESERVED);
+        verify(invoiceService).ensureInvoice(reservation);
     }
 
     @Test
-    void testConfirm_FailsOnAlreadyConfirmed() {
-        String resId = "res-already-conf";
-
-        Reservation reservation = new Reservation();
-        reservation.setReservationId(resId);
-        reservation.setStatus(ReservationStatus.CONFIRMED);
+    void confirm_FailsOnAlreadyConfirmed() {
+        String resId = "res-702";
+        Reservation reservation = reservation(resId, "room-702", ReservationStatus.CONFIRMED);
 
         when(reservationRepository.findById(resId)).thenReturn(Optional.of(reservation));
 
-        IllegalArgumentException ex = assertThrows(
-                IllegalArgumentException.class,
-                () -> reservationService.confirmReservation(resId)
-        );
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> reservationService.confirmReservation(resId));
         assertEquals("Only pending reservations can be confirmed", ex.getMessage());
     }
 
     @Test
-    void testConfirm_AllowsConfirmationForDifferentDatesOnSameRoom() {
-        String roomId = "room-multi";
-        String resId1 = "res-m1";
-        String resId2 = "res-m2";
+    void confirm_FailsWhenRoomInMaintenance() {
+        String roomId = "room-703";
+        String resId = "res-703";
+        Room room = room(roomId, RoomStatus.MAINTENANCE);
+        Reservation reservation = reservation(resId, roomId, ReservationStatus.PENDING);
 
-        Room room = new Room();
-        room.setRoomId(roomId);
-        room.setStatus(RoomStatus.RESERVED); // Already reserved by resId1
+        when(reservationRepository.findById(resId)).thenReturn(Optional.of(reservation));
+        when(roomRepository.findById(roomId)).thenReturn(Optional.of(room));
 
-        Reservation res1 = new Reservation();
-        res1.setReservationId(resId1);
-        res1.setRoomId(roomId);
-        res1.setStatus(ReservationStatus.CONFIRMED);
+        ConflictException ex = assertThrows(ConflictException.class,
+                () -> reservationService.confirmReservation(resId));
+        assertEquals("Room is not available for confirmation", ex.getMessage());
+    }
+
+    @Test
+    void confirm_RejectsOverlappingReservation() {
+        String roomId = "room-704";
+        String resId2 = "res-704b";
+        Room room = room(roomId, RoomStatus.RESERVED);
+
+        Reservation res1 = reservation("res-704a", roomId, ReservationStatus.CONFIRMED);
         res1.setCheckInDate(LocalDate.now().plusDays(1));
         res1.setCheckOutDate(LocalDate.now().plusDays(4));
 
-        Reservation res2 = new Reservation();
-        res2.setReservationId(resId2);
-        res2.setRoomId(roomId);
-        res2.setStatus(ReservationStatus.PENDING);
-        res2.setCheckInDate(LocalDate.now().plusDays(10)); // Non-overlapping dates!
-        res2.setCheckOutDate(LocalDate.now().plusDays(14));
+        Reservation res2 = reservation(resId2, roomId, ReservationStatus.PENDING);
+        res2.setCheckInDate(LocalDate.now().plusDays(2));
+        res2.setCheckOutDate(LocalDate.now().plusDays(5));
 
         when(reservationRepository.findById(resId2)).thenReturn(Optional.of(res2));
         when(roomRepository.findById(roomId)).thenReturn(Optional.of(room));
         when(reservationRepository.findByRoomId(roomId)).thenReturn(List.of(res1, res2));
-        when(reservationRepository.updateStatus(eq(resId2), eq(ReservationStatus.CONFIRMED))).thenReturn(res2);
 
-        Reservation confirmed = reservationService.confirmReservation(resId2);
-
-        assertNotNull(confirmed);
-        verify(roomRepository).updateStatus(roomId, RoomStatus.RESERVED);
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> reservationService.confirmReservation(resId2));
+        assertEquals("Room is already reserved for the selected dates", ex.getMessage());
     }
 
     @Test
-    void testConfirm_FailsWhenRoomInMaintenance() {
-        String roomId = "room-maint";
-        String resId = "res-maint";
+    void testMaxGuestsForRoomType() {
+        assertEquals(2, ReservationService.getMaxGuestsForRoom(roomWithType(RoomType.STANDARD)));
+        assertEquals(3, ReservationService.getMaxGuestsForRoom(roomWithType(RoomType.DELUXE)));
+        assertEquals(4, ReservationService.getMaxGuestsForRoom(roomWithType(RoomType.SUITE)));
+        assertEquals(6, ReservationService.getMaxGuestsForRoom(roomWithType(RoomType.FAMILY)));
+        assertEquals(4, ReservationService.getMaxGuestsForRoom(new Room()));
+    }
 
+    private Room roomWithType(RoomType type) {
         Room room = new Room();
-        room.setRoomId(roomId);
-        room.setStatus(RoomStatus.MAINTENANCE);
+        room.setRoomType(type);
+        return room;
+    }
 
-        Reservation res = new Reservation();
-        res.setReservationId(resId);
-        res.setRoomId(roomId);
-        res.setStatus(ReservationStatus.PENDING);
-        res.setCheckInDate(LocalDate.now().plusDays(1));
-        res.setCheckOutDate(LocalDate.now().plusDays(4));
+    @Test
+    void reservationIsNotFoundById() {
+        when(reservationRepository.findById("missing")).thenReturn(Optional.empty());
 
-        when(reservationRepository.findById(resId)).thenReturn(Optional.of(res));
-        when(roomRepository.findById(roomId)).thenReturn(Optional.of(room));
+        assertThrows(com.hotel.hotel_management.exception.ResourceNotFoundException.class,
+                () -> reservationService.getReservationById("missing"));
+    }
 
-        ConflictException ex = assertThrows(
-                ConflictException.class,
-                () -> reservationService.confirmReservation(resId)
-        );
-        assertEquals("Room is not available for confirmation", ex.getMessage());
+    @Test
+    void eqMatcherIsUsedForStatusUpdates() {
+        // Guards against a regression where the status argument was passed
+        // positionally and silently mismatched.
+        String resId = "res-801";
+        Reservation reservation = reservation(resId, "room-801", ReservationStatus.CONFIRMED);
+        reservation.setCheckInDate(LocalDate.now().plusDays(1));
+
+        when(reservationRepository.findById(resId)).thenReturn(Optional.of(reservation));
+        when(roomRepository.findById("room-801"))
+                .thenReturn(Optional.of(room("room-801", RoomStatus.RESERVED)));
+        when(housekeepingService.getTasksByRoomId("room-801"))
+                .thenReturn(Collections.emptyList());
+        when(reservationRepository.updateStatus(eq(resId), eq(ReservationStatus.CHECKED_IN)))
+                .thenReturn(reservation);
+
+        reservationService.checkInReservation(resId);
+
+        verify(reservationRepository).updateStatus(resId, ReservationStatus.CHECKED_IN);
     }
 }
-

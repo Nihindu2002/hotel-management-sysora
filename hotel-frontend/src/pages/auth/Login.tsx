@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { getPostLoginPath } from '../../utils/roleRedirect';
 import { loginRules, type LoginFormValues } from '../../schemas/authSchemas';
@@ -16,8 +16,8 @@ export default function Login() {
     formState: { errors, isSubmitting },
   } = useForm<LoginFormValues>({ mode: 'onTouched' });
 
-  // Already signed in: customers belong on the LUMI site, staff on their
-  // dashboard — never back through the login form.
+  // Already signed in: go straight to the dashboard for this role rather than
+  // back through the login form.
   if (!loading && user) {
     return <Navigate to={getPostLoginPath(user.role)} replace />;
   }
@@ -109,12 +109,8 @@ export default function Login() {
             {isSubmitting ? 'Signing in...' : 'Login'}
           </button>
 
-          <p className="mt-4 text-center text-sm text-gray-500">
-            Don&apos;t have an account?{' '}
-            <Link to="/register" className="text-indigo-600 hover:underline">
-              Register
-            </Link>
-          </p>
+          {/* No sign-up link: accounts are provisioned for hotel employees by an
+              administrator. This application has no public registration. */}
         </form>
       </div>
     </div>

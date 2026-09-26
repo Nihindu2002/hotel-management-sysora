@@ -1,7 +1,6 @@
 package com.hotel.hotel_management.auth;
 
 import com.google.firebase.auth.FirebaseAuth;
-import com.hotel.hotel_management.user.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.client.RestClient;
@@ -20,9 +19,8 @@ class AuthServiceTest {
 
     @Test
     void loginReturnsMappedFirebaseResponse() throws Exception {
-        UserRepository userRepository = mock(UserRepository.class);
         FirebaseAuth firebaseAuth = mock(FirebaseAuth.class);
-        AuthService service = new AuthService(userRepository, firebaseAuth, "test-api-key");
+        AuthService service = new AuthService(firebaseAuth, "test-api-key");
 
         RestClient restClient = mock(RestClient.class);
         RestClient.RequestBodyUriSpec requestBodyUriSpec = mock(RestClient.RequestBodyUriSpec.class);
@@ -58,9 +56,8 @@ class AuthServiceTest {
 
     @Test
     void loginThrowsUnauthorizedWhenFirebaseRejectsCredentials() throws Exception {
-        UserRepository userRepository = mock(UserRepository.class);
         FirebaseAuth firebaseAuth = mock(FirebaseAuth.class);
-        AuthService service = new AuthService(userRepository, firebaseAuth, "test-api-key");
+        AuthService service = new AuthService(firebaseAuth, "test-api-key");
 
         RestClient restClient = mock(RestClient.class);
         RestClient.RequestBodyUriSpec requestBodyUriSpec = mock(RestClient.RequestBodyUriSpec.class);

@@ -176,7 +176,9 @@ public class FinanceService {
             return null;
         }
 
-        String actualPerformedBy = performedBy != null ? performedBy : (payment.getCustomerUid() != null ? payment.getCustomerUid() : "SYSTEM");
+        String actualPerformedBy = performedBy != null
+                ? performedBy
+                : (payment.getRecordedBy() != null ? payment.getRecordedBy() : "SYSTEM");
 
         FinanceTransaction transaction = new FinanceTransaction();
         transaction.setTransactionId(UUID.randomUUID().toString());
@@ -213,7 +215,9 @@ public class FinanceService {
             return null;
         }
 
-        String actualPerformedBy = performedBy != null ? performedBy : (payment.getCustomerUid() != null ? payment.getCustomerUid() : "SYSTEM");
+        String actualPerformedBy = performedBy != null
+                ? performedBy
+                : (payment.getRecordedBy() != null ? payment.getRecordedBy() : "SYSTEM");
 
         FinanceTransaction transaction = new FinanceTransaction();
         transaction.setTransactionId(UUID.randomUUID().toString());

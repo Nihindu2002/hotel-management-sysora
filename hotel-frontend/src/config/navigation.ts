@@ -7,8 +7,17 @@ export interface NavItem {
   allowedRoles: UserRole[];
 }
 
+/**
+ * The sidebar, role by role.
+ *
+ * Each item carries the roles allowed to see it; the sidebar filters this list
+ * against the signed-in user. The set of items a role sees here is the same set
+ * its routes allow, so nobody is shown a link that leads to a 403.
+ *
+ * There is no CUSTOMER entry: this is an internal tool for hotel employees.
+ */
 export const NAVIGATION_ITEMS: NavItem[] = [
-  // ── Role Dashboards ──
+  // ── Dashboards ──
   // ADMIN and MANAGER share one dashboard; /admin and /manager remain valid
   // routes for direct links, but only /dashboard appears here so neither role
   // sees the same entry twice.
@@ -42,11 +51,10 @@ export const NAVIGATION_ITEMS: NavItem[] = [
     icon: 'dashboard',
     allowedRoles: ['ACCOUNTANT'],
   },
-  // CUSTOMER has no entries here on purpose: customers never render inside
-  // DashboardLayout. Their pages live in the LUMI site (see pages/site) and are
-  // navigated by the account sub-nav in pages/site/components/AccountLayout.
 
-  // ── Operations & Front Desk ──
+  // ── Rooms & Reservations ──
+  // Each role that manages rooms gets its own path so the label can stay
+  // "Rooms" without two entries colliding in the sidebar.
   {
     label: 'Rooms',
     path: '/receptionist/rooms',
@@ -54,13 +62,13 @@ export const NAVIGATION_ITEMS: NavItem[] = [
     allowedRoles: ['RECEPTIONIST'],
   },
   {
-    label: 'Manage Rooms',
+    label: 'Rooms',
     path: '/admin/rooms',
     icon: 'rooms',
     allowedRoles: ['ADMIN'],
   },
   {
-    label: 'Manage Rooms',
+    label: 'Rooms',
     path: '/manager/rooms',
     icon: 'rooms',
     allowedRoles: ['MANAGER'],
@@ -72,7 +80,7 @@ export const NAVIGATION_ITEMS: NavItem[] = [
     allowedRoles: ['ADMIN', 'MANAGER', 'RECEPTIONIST'],
   },
 
-  // ── Billing & Finance ──
+  // ── Billing ──
   {
     label: 'Invoices',
     path: '/invoices',
@@ -91,7 +99,7 @@ export const NAVIGATION_ITEMS: NavItem[] = [
     label: 'Housekeeping',
     path: '/housekeeping/tasks',
     icon: 'housekeeping',
-    allowedRoles: ['ADMIN', 'MANAGER', 'HOUSEKEEPING'],
+    allowedRoles: ['ADMIN', 'MANAGER', 'RECEPTIONIST', 'HOUSEKEEPING'],
   },
   {
     label: 'Maintenance',
@@ -103,18 +111,18 @@ export const NAVIGATION_ITEMS: NavItem[] = [
     label: 'Inventory',
     path: '/inventory',
     icon: 'inventory',
-    allowedRoles: [
-      'ADMIN',
-      'MANAGER',
-      'RECEPTIONIST',
-      'STAFF',
-      'HOUSEKEEPING',
-      'MAINTENANCE',
-    ],
+    allowedRoles: ['ADMIN', 'MANAGER'],
   },
 
   // ── Administration & Management ──
-
+  // "Staff" is the employee roster; "Users" is the login accounts behind it.
+  // ADMIN holds both; MANAGER sees the roster only, matching the backend.
+  {
+    label: 'Staff',
+    path: '/staff',
+    icon: 'staff',
+    allowedRoles: ['ADMIN', 'MANAGER'],
+  },
   {
     label: 'Finance',
     path: '/finance',
@@ -125,7 +133,7 @@ export const NAVIGATION_ITEMS: NavItem[] = [
     label: 'Reports',
     path: '/reports',
     icon: 'reports',
-    allowedRoles: ['ADMIN', 'MANAGER'],
+    allowedRoles: ['ADMIN', 'MANAGER', 'ACCOUNTANT'],
   },
   {
     label: 'Users',
@@ -133,5 +141,21 @@ export const NAVIGATION_ITEMS: NavItem[] = [
     icon: 'users',
     allowedRoles: ['ADMIN'],
   },
+  {
+    label: 'Settings',
+    path: '/settings',
+    icon: 'account',
+    allowedRoles: ['ADMIN', 'MANAGER'],
+  },
 ];
 
+/** The nav entries a given role should see, in order. */
+export function navItemsForRole(role?: UserRole | string | null): NavItem[] {
+  if (!role) {
+    return [];
+  }
+
+  return NAVIGATION_ITEMS.filter((item) =>
+    item.allowedRoles.includes(role as UserRole),
+  );
+}

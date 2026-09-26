@@ -7,11 +7,17 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-@Tag(name = "Authentication", description = "Authentication and user registration operations")
+/**
+ * Staff sign-in.
+ *
+ * There is no registration endpoint. Accounts are provisioned for hotel
+ * employees by an administrator; the application has no public sign-up, and the
+ * previous endpoint created CUSTOMER accounts that no longer exist.
+ */
+@Tag(name = "Authentication", description = "Staff authentication")
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
@@ -22,25 +28,13 @@ public class AuthController {
         this.authService = authService;
     }
 
-    @Operation(summary = "Register a new user", description = "Creates a new user account with CUSTOMER role")
-    @SecurityRequirements
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "User registered successfully"),
-            @ApiResponse(responseCode = "400", description = "Validation error or email already in use")
-    })
-    @PostMapping("/register")
-    public ResponseEntity<?> register(
-            @Valid @RequestBody RegisterRequest request) {
-
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(authService.register(request));
-    }
-
-    @Operation(summary = "Login user", description = "Authenticates user credentials and returns tokens")
+    @Operation(summary = "Login staff user",
+            description = "Authenticates staff credentials and returns tokens")
     @SecurityRequirements
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "User authenticated successfully"),
-            @ApiResponse(responseCode = "400", description = "Validation error or invalid credentials")
+            @ApiResponse(responseCode = "400", description = "Validation error"),
+            @ApiResponse(responseCode = "401", description = "Invalid email or password")
     })
     @PostMapping("/login")
     public ResponseEntity<?> login(

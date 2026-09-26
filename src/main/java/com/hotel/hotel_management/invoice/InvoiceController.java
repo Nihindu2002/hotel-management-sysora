@@ -1,17 +1,15 @@
 package com.hotel.hotel_management.invoice;
-import com.google.firebase.auth.FirebaseToken;
+
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-@Tag(name = "Invoices", description = "Billing and invoice management")
+@Tag(name = "Invoices", description = "Billing and invoice management for hotel staff")
 @RestController
 @RequestMapping("/api/invoices")
 public class InvoiceController {
@@ -22,9 +20,11 @@ public class InvoiceController {
         this.invoiceService = invoiceService;
     }
 
-    @Operation(summary = "Create invoice for reservation", description = "Generates an invoice linked to a reservation with room charges")
+    @Operation(summary = "Create invoice for reservation",
+            description = "Generates the room-charge invoice for a reservation. One invoice per reservation.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Invoice created"),
+            @ApiResponse(responseCode = "400", description = "Reservation is cancelled, pending, or already invoiced"),
             @ApiResponse(responseCode = "404", description = "Reservation not found")
     })
     @PostMapping("/reservation/{reservationId}")
@@ -49,90 +49,44 @@ public class InvoiceController {
     })
     @GetMapping("/{invoiceId}")
     public ResponseEntity<Invoice> getInvoice(
-            @PathVariable String invoiceId,
-            @Parameter(hidden = true) @AuthenticationPrincipal FirebaseToken token,
-            @Parameter(hidden = true) org.springframework.security.core.Authentication authentication) {
+            @PathVariable String invoiceId) {
 
-        Invoice invoice = invoiceService.getInvoiceById(invoiceId);
-
-        boolean isCustomer = authentication != null &&
-                authentication.getAuthorities()
-                        .stream()
-                        .anyMatch(authority ->
-                                authority.getAuthority()
-                                        .equals("ROLE_CUSTOMER"));
-
-        if (isCustomer && token != null && !token.getUid().equals(invoice.getCustomerUid())) {
-            throw new com.hotel.hotel_management.common.ForbiddenException(
-                    "You are not authorized to view this invoice");
-        }
-
-        return ResponseEntity.ok(invoice);
+        return ResponseEntity.ok(
+                invoiceService.getInvoiceById(invoiceId));
     }
 
-    @Operation(summary = "Get invoice by reservation ID", description = "Retrieves invoice associated with a reservation")
+    @Operation(summary = "Get invoice by reservation ID",
+            description = "Retrieves the invoice associated with a reservation")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Invoice found"),
-            @ApiResponse(responseCode = "404", description = "Invoice not found")
+            @ApiResponse(responseCode = "404", description = "No invoice for this reservation")
     })
     @GetMapping("/reservation/{reservationId}")
     public ResponseEntity<Invoice> getInvoiceByReservation(
-            @PathVariable String reservationId,
-            @Parameter(hidden = true) @AuthenticationPrincipal FirebaseToken token,
-            @Parameter(hidden = true) org.springframework.security.core.Authentication authentication) {
+            @PathVariable String reservationId) {
 
         Invoice invoice = invoiceService.getInvoiceByReservationId(reservationId);
         if (invoice == null) {
             return ResponseEntity.notFound().build();
         }
 
-        boolean isCustomer = authentication != null &&
-                authentication.getAuthorities()
-                        .stream()
-                        .anyMatch(authority ->
-                                authority.getAuthority()
-                                        .equals("ROLE_CUSTOMER"));
-
-        if (isCustomer && token != null && !token.getUid().equals(invoice.getCustomerUid())) {
-            throw new com.hotel.hotel_management.common.ForbiddenException(
-                    "You are not authorized to view this invoice");
-        }
-
         return ResponseEntity.ok(invoice);
     }
 
-    @Operation(summary = "Get my invoices", description = "Retrieves invoices for the authenticated customer")
-    @GetMapping("/my")
-    public ResponseEntity<List<Invoice>> getMyInvoices(
-            @Parameter(hidden = true) @AuthenticationPrincipal FirebaseToken token) {
+    @Operation(summary = "Recalculate invoice status",
+            description = "Recomputes UNPAID / PARTIALLY_PAID / PAID from recorded payments")
+    @PatchMapping("/{invoiceId}/recalculate")
+    public ResponseEntity<Invoice> recalculateInvoiceStatus(
+            @PathVariable String invoiceId) {
 
         return ResponseEntity.ok(
-                invoiceService.getMyInvoices(
-                        token.getUid()));
+                invoiceService.recalculateInvoiceStatus(invoiceId));
     }
 
-    @Operation(summary = "Update invoice amounts", description = "Adjusts additional charges, taxes, discounts on an unpaid/partially-paid invoice")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Invoice updated"),
-            @ApiResponse(responseCode = "400", description = "Cannot update paid invoice or validation error"),
-            @ApiResponse(responseCode = "404", description = "Invoice not found")
-    })
-    @PatchMapping("/{invoiceId}/amounts")
-    public ResponseEntity<Invoice> updateInvoiceAmounts(
-            @PathVariable String invoiceId,
-            @jakarta.validation.Valid
-            @RequestBody UpdateInvoiceRequest request) {
-
-        return ResponseEntity.ok(
-                invoiceService.updateInvoiceAmounts(
-                        invoiceId,
-                        request));
-    }
-
-    @Operation(summary = "Delete invoice", description = "Deletes an invoice if unpaid")
+    @Operation(summary = "Delete invoice", description = "Deletes an invoice if it has no payments")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "204", description = "Invoice deleted"),
-            @ApiResponse(responseCode = "400", description = "Cannot delete paid or partially-paid invoice"),
+            @ApiResponse(responseCode = "400", description = "Invoice has payments"),
             @ApiResponse(responseCode = "404", description = "Invoice not found")
     })
     @DeleteMapping("/{invoiceId}")

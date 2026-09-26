@@ -6,7 +6,6 @@ import {
   type ReactNode,
 } from 'react';
 import {
-  createUserWithEmailAndPassword,
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signOut,
@@ -16,18 +15,12 @@ import {
 import { auth } from '../lib/firebase';
 import { getCurrentUser } from '../services/userService';
 import type { UserProfile } from '../types/user';
-import type { RegisterRequest } from '../types/auth';
-import * as authService from '../services/authService';
 
 export interface AuthContextType {
   user: UserProfile | null;
   firebaseUser: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<UserProfile>;
-  register: {
-    (email: string, password: string): Promise<void>;
-    (data: RegisterRequest): Promise<void>;
-  };
   logout: () => Promise<void>;
   /** Re-reads the profile from the API, e.g. after the user edits it. */
   refreshProfile: () => Promise<UserProfile>;
@@ -77,17 +70,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const register = async (
-    emailOrData: string | RegisterRequest,
-    password?: string,
-  ) => {
-    if (typeof emailOrData === 'string') {
-      await createUserWithEmailAndPassword(auth, emailOrData, password!);
-    } else {
-      await authService.register(emailOrData);
-    }
-  };
-
   const logout = async () => {
     await signOut(auth);
     setUser(null);
@@ -107,7 +89,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         firebaseUser,
         loading,
         login,
-        register: register as AuthContextType['register'],
         logout,
         refreshProfile,
       }}

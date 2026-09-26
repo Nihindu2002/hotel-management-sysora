@@ -32,9 +32,9 @@ export default function DashboardLayout() {
           </button>
 
           {/* The logo means "home", and home inside the app is the signed-in
-              user's own dashboard — not the public landing page at "/". */}
+              user's own dashboard. There is no public page to fall back to. */}
           <Link
-            to={user ? getRoleRedirectPath(user.role) : '/'}
+            to={user ? getRoleRedirectPath(user.role) : '/login'}
             className="flex items-center gap-2 text-xl font-bold tracking-tight text-gray-900"
           >
             <span className="text-gold-ink">★</span> Hotel Management

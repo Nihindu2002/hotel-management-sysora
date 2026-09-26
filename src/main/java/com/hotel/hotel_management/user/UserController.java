@@ -6,6 +6,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -47,6 +49,22 @@ public class UserController {
         // The uid is resolved from the token rather than the path or body, so a
         // caller can only ever edit their own record.
         return userService.updateUser(resolveUid(authentication), request);
+    }
+
+    @Operation(summary = "Create a staff account",
+            description = "Provisions a Firebase Authentication login and profile for a hotel "
+                    + "employee. The role must be a staff role.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Staff account created"),
+            @ApiResponse(responseCode = "400", description = "Validation error or non-staff role"),
+            @ApiResponse(responseCode = "409", description = "Email already registered")
+    })
+    @PostMapping
+    public ResponseEntity<CreateUserResponse> createUser(
+            @Valid @RequestBody CreateUserRequest request) {
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(userService.createUser(request));
     }
 
     @Operation(summary = "Get all users", description = "Retrieves a list of all registered users (Admin only)")

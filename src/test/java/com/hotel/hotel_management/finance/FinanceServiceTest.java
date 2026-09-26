@@ -187,7 +187,7 @@ class FinanceServiceTest {
         payment.setPaymentId("pay-999");
         payment.setInvoiceId("inv-123");
         payment.setAmount(45000.0);
-        payment.setCustomerUid("cust-1");
+        payment.setRecordedBy("staff-1");
 
         when(financeRepository.findByReferenceId("pay-999")).thenReturn(Collections.emptyList());
         when(financeRepository.save(any(FinanceTransaction.class)))
@@ -263,7 +263,7 @@ class FinanceServiceTest {
         payment.setPaymentId("pay-777");
         payment.setInvoiceId("inv-456");
         payment.setAmount(15000.0);
-        payment.setCustomerUid("cust-2");
+        payment.setRecordedBy("staff-2");
 
         when(financeRepository.findByReferenceId("pay-777")).thenReturn(Collections.emptyList());
         when(financeRepository.save(any(FinanceTransaction.class)))

@@ -72,7 +72,11 @@ export default function RoomDetails() {
           </p>
 
           <p className="mt-6 text-2xl font-bold">
-            ${room.pricePerNight} / night
+            {room.pricePerNight?.toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}{" "}
+            / night
           </p>
 
           <p className="mt-3">
@@ -82,13 +86,13 @@ export default function RoomDetails() {
           {room.status !== "MAINTENANCE" ? (
             <Link
               to={`/reservations/new?roomId=${room.roomId}`}
-              className="mt-6 inline-block rounded bg-blue-600 px-6 py-3 text-white font-medium hover:bg-blue-700 transition"
+              className="mt-6 inline-block rounded bg-blue-600 px-6 py-3 font-medium text-white transition hover:bg-blue-700"
             >
-              Reserve This Room
+              Book this room
             </Link>
           ) : (
             <p className="mt-4 text-sm font-semibold text-red-600">
-              This room is currently under maintenance and cannot be reserved.
+              This room is under maintenance and cannot be booked.
             </p>
           )}
         </div>

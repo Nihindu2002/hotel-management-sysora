@@ -37,7 +37,7 @@ export default function Rooms() {
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Rooms</h1>
         <p className="text-gray-600">
-          Browse our available hotel rooms.
+          Every room in the property and its current status.
         </p>
       </div>
 
@@ -82,7 +82,11 @@ export default function Rooms() {
                 </p>
 
                 <p className="mt-3 text-lg font-bold">
-                  ${room.pricePerNight} / night
+                  {room.pricePerNight?.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}{' '}
+                  / night
                 </p>
 
                 <p className="mt-2 text-sm">

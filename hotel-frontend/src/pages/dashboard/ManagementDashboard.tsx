@@ -99,6 +99,8 @@ export default function ManagementDashboard() {
   const rooms = summary?.roomStatistics;
   const reservations = summary?.reservationStatistics;
   const inventory = summary?.inventoryStatistics;
+  const housekeeping = summary?.housekeepingStatistics;
+  const maintenance = summary?.maintenanceStatistics;
 
   const reservationCards: StatCard[] = [
     {
@@ -363,6 +365,81 @@ export default function ManagementDashboard() {
                 <p className="text-lg font-bold text-gray-900">{activity.confirmedReservations}</p>
               </div>
             </div>
+          )}
+        </div>
+      </div>
+
+      {/* Housekeeping & maintenance */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Housekeeping</h2>
+              <p className="text-xs text-gray-500">
+                {housekeeping?.totalTasks ?? 0} tasks on record
+              </p>
+            </div>
+            <Link
+              to="/housekeeping/tasks"
+              className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+            >
+              View tasks →
+            </Link>
+          </div>
+
+          {loading ? (
+            <div className="py-8 text-center text-sm text-gray-500">Loading…</div>
+          ) : (
+            <ul className="divide-y divide-gray-100">
+              {[
+                ['Pending', housekeeping?.pendingTasks ?? 0],
+                ['Assigned', housekeeping?.assignedTasks ?? 0],
+                ['In progress', housekeeping?.inProgressTasks ?? 0],
+                ['Completed', housekeeping?.completedTasks ?? 0],
+                ['Cancelled', housekeeping?.cancelledTasks ?? 0],
+              ].map(([label, count]) => (
+                <li key={label} className="flex items-center justify-between py-2.5">
+                  <span className="text-sm text-gray-700">{label}</span>
+                  <span className="text-sm font-semibold text-gray-900">{count}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Maintenance</h2>
+              <p className="text-xs text-gray-500">
+                {maintenance?.totalTasks ?? 0} tasks on record
+              </p>
+            </div>
+            <Link
+              to="/maintenance/tasks"
+              className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+            >
+              View tasks →
+            </Link>
+          </div>
+
+          {loading ? (
+            <div className="py-8 text-center text-sm text-gray-500">Loading…</div>
+          ) : (
+            <ul className="divide-y divide-gray-100">
+              {[
+                ['Pending', maintenance?.pendingTasks ?? 0],
+                ['Assigned', maintenance?.assignedTasks ?? 0],
+                ['In progress', maintenance?.inProgressTasks ?? 0],
+                ['Completed', maintenance?.completedTasks ?? 0],
+                ['Cancelled', maintenance?.cancelledTasks ?? 0],
+              ].map(([label, count]) => (
+                <li key={label} className="flex items-center justify-between py-2.5">
+                  <span className="text-sm text-gray-700">{label}</span>
+                  <span className="text-sm font-semibold text-gray-900">{count}</span>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       </div>

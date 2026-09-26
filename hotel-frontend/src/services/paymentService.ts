@@ -2,56 +2,40 @@ import api from './api';
 import type { CreatePaymentRequest, Payment } from '../types/payment';
 
 /**
- * Records a customer payment against an invoice.
- * Uses: POST /api/payments
+ * Records a payment against an invoice.
+ *
+ * The backend checks the amount against the outstanding balance, updates the
+ * invoice status, and writes the matching finance income entry. None of those
+ * are done here.
  */
 export const createPayment = async (
-  data: CreatePaymentRequest
+  data: CreatePaymentRequest,
 ): Promise<Payment> => {
   const response = await api.post<Payment>('/payments', data);
   return response.data;
 };
 
-/**
- * Retrieves all payments for the authenticated customer.
- * Uses: GET /api/payments/my (fallback: GET /api/customer/payments)
- */
-export const getMyPayments = async (): Promise<Payment[]> => {
-  try {
-    const response = await api.get<Payment[]>('/payments/my');
-    return response.data;
-  } catch {
-    const fallback = await api.get<Payment[]>('/customer/payments');
-    return fallback.data;
-  }
-};
-
-/**
- * Retrieves payment history for a specific invoice.
- * Uses: GET /api/payments/invoice/{invoiceId}
- */
+/** Payments recorded against one invoice. */
 export const getPaymentsByInvoice = async (
-  invoiceId: string
+  invoiceId: string,
 ): Promise<Payment[]> => {
   const response = await api.get<Payment[]>(`/payments/invoice/${invoiceId}`);
   return response.data;
 };
 
-/**
- * Retrieves payment details by payment ID.
- * Uses: GET /api/payments/{paymentId}
- */
 export const getPaymentById = async (paymentId: string): Promise<Payment> => {
   const response = await api.get<Payment>(`/payments/${paymentId}`);
   return response.data;
 };
 
-/**
- * Retrieves every payment across the hotel, newest first.
- * Uses: GET /api/payments (ADMIN, MANAGER, RECEPTIONIST, ACCOUNTANT)
- */
+/** Every payment across the hotel. */
 export const getAllPayments = async (): Promise<Payment[]> => {
   const response = await api.get<Payment[]>('/payments');
   return response.data;
 };
 
+/** Refunds a completed payment; the invoice and finance ledger follow. */
+export const refundPayment = async (paymentId: string): Promise<Payment> => {
+  const response = await api.patch<Payment>(`/payments/${paymentId}/refund`);
+  return response.data;
+};

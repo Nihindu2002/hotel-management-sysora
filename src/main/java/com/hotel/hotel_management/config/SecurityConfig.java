@@ -15,6 +15,26 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+/**
+ * Role-based access for a staff-only application.
+ *
+ * Rules are evaluated top to bottom and the first match wins, so every narrower
+ * rule has to sit above the broader one it specialises. Two consequences worth
+ * keeping in mind when editing:
+ *
+ * <ul>
+ *   <li>A path with no rule of its own falls through to
+ *       {@code anyRequest().authenticated()} — that is, <em>every</em> signed-in
+ *       role. Add an explicit rule rather than relying on the catch-all.</li>
+ *   <li>{@code *} matches a single path segment, so
+ *       {@code /api/reservations/*} does not cover
+ *       {@code /api/reservations/{id}/check-in}. Sub-resources need their own
+ *       matchers.</li>
+ * </ul>
+ *
+ * There is no public surface beyond sign-in and the API docs: no room browsing,
+ * no availability search, no customer endpoints.
+ */
 @Configuration
 public class SecurityConfig {
 
@@ -42,8 +62,6 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
-                                "/api/test",
-                                "/api/auth/register",
                                 "/api/auth/login",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
@@ -51,13 +69,14 @@ public class SecurityConfig {
                                 "/v3/api-docs"
                         ).permitAll()
 
+                        // ── Self-service profile ──
+                        // Declared above the ADMIN-only /api/users/* rules below,
+                        // which would otherwise match these paths. The controller
+                        // reads the uid from the token, so a user can only ever
+                        // reach their own profile.
                         .requestMatchers(HttpMethod.GET, "/api/users/me")
                         .authenticated()
 
-                        // Self-service profile edit. Declared before the
-                        // ADMIN-only PUT /api/users/* below, which would
-                        // otherwise match this path and lock customers out of
-                        // their own profile.
                         .requestMatchers(HttpMethod.PUT, "/api/users/me")
                         .authenticated()
 
@@ -68,6 +87,11 @@ public class SecurityConfig {
                         .authenticated()
 
                         .requestMatchers("/api/admin/**")
+                        .hasRole("ADMIN")
+
+                        // Provisioning a staff login. ADMIN only, and the service
+                        // refuses any role that is not a staff role.
+                        .requestMatchers(HttpMethod.POST, "/api/users")
                         .hasRole("ADMIN")
 
                         .requestMatchers(HttpMethod.GET, "/api/users")
@@ -82,16 +106,19 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PATCH, "/api/users/*/role")
                         .hasRole("ADMIN")
 
-                        // Public room browsing. The LUMI site lists rooms to
-                        // signed-out guests, so gating these locked the public
-                        // pages behind a sign-in the visitor had no reason to
-                        // have. Read-only: creating, editing and deleting rooms
-                        // stay role-gated below.
+                        // ── Rooms ──
+                        // Read access is staff-wide: housekeeping and maintenance
+                        // both work from room records. Mutation stays with the
+                        // roles that own the room inventory.
                         .requestMatchers(HttpMethod.GET, "/api/rooms")
-                        .permitAll()
+                        .hasAnyRole(
+                                "ADMIN", "MANAGER", "RECEPTIONIST",
+                                "HOUSEKEEPING", "MAINTENANCE")
 
                         .requestMatchers(HttpMethod.GET, "/api/rooms/*")
-                        .permitAll()
+                        .hasAnyRole(
+                                "ADMIN", "MANAGER", "RECEPTIONIST",
+                                "HOUSEKEEPING", "MAINTENANCE")
 
                         .requestMatchers(HttpMethod.POST, "/api/rooms")
                         .hasAnyRole("ADMIN", "MANAGER")
@@ -111,9 +138,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/manager/**")
                         .hasAnyRole("ADMIN", "MANAGER")
 
+                        // ── Dashboard ──
                         // Narrower than the /api/dashboard/** catch-all below, so
-                        // these must be declared first (first match wins). Each
-                        // grants one extra role read access to that report only.
+                        // these must be declared first. Each grants one extra role
+                        // read access to that report only.
                         .requestMatchers(HttpMethod.GET, "/api/dashboard/reservations/activity")
                         .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST")
 
@@ -123,48 +151,45 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/dashboard/invoices/outstanding")
                         .hasAnyRole("ADMIN", "MANAGER", "ACCOUNTANT")
 
+                        // The accountant's Reports section reads these same
+                        // aggregates, so reads are open to that role as well.
+                        // Writes — there are none today — stay with management.
+                        .requestMatchers(HttpMethod.GET, "/api/dashboard", "/api/dashboard/**")
+                        .hasAnyRole("ADMIN", "MANAGER", "ACCOUNTANT")
+
                         .requestMatchers("/api/dashboard", "/api/dashboard/**")
                         .hasAnyRole("ADMIN", "MANAGER")
 
+                        // ── Reservations ──
+                        // Booking, check-in and checkout are front-desk work.
+                        // Nobody else creates or moves a stay.
                         .requestMatchers(HttpMethod.POST, "/api/reservations")
-                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "CUSTOMER")
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST")
 
                         .requestMatchers(HttpMethod.GET, "/api/reservations")
                         .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST")
 
-                        .requestMatchers(HttpMethod.GET, "/api/reservations/my")
-                        .hasRole("CUSTOMER")
-
-                        // Booking search is reachable from the public site's
-                        // date form, so it cannot require a session. It takes
-                        // dates and party size only — never a customer id — and
-                        // returns which rooms are free, so nothing private is
-                        // exposed. Must stay above the /api/reservations/*
-                        // matcher, which would otherwise swallow this path.
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/reservations/availability"
                         )
-                        .permitAll()
-
-                        .requestMatchers(HttpMethod.GET, "/api/reservations/*")
-                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "CUSTOMER")
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST")
 
                         .requestMatchers(
-                                HttpMethod.PATCH,
-                                "/api/reservations/*/cancel"
-                        )
-                        .hasRole("CUSTOMER")
-
-                        .requestMatchers(
-                                HttpMethod.PATCH,
-                                "/api/reservations/*/cancel-by-staff"
+                                HttpMethod.GET,
+                                "/api/reservations/*/bill"
                         )
                         .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST")
 
                         .requestMatchers(
-                                HttpMethod.PATCH,
-                                "/api/reservations/*/confirm"
+                                HttpMethod.POST,
+                                "/api/reservations/*/bill"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST")
+
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/reservations/*/check-out"
                         )
                         .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST")
 
@@ -176,10 +201,20 @@ public class SecurityConfig {
 
                         .requestMatchers(
                                 HttpMethod.PATCH,
-                                "/api/reservations/*/check-out"
+                                "/api/reservations/*/confirm"
                         )
                         .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST")
 
+                        .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/reservations/*/cancel-by-staff"
+                        )
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST")
+
+                        .requestMatchers(HttpMethod.GET, "/api/reservations/*")
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST")
+
+                        // ── Housekeeping ──
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/housekeeping/test"
@@ -264,6 +299,7 @@ public class SecurityConfig {
                         )
                         .hasAnyRole("ADMIN", "MANAGER")
 
+                        // ── Maintenance ──
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/maintenance/tasks"
@@ -330,6 +366,7 @@ public class SecurityConfig {
                         )
                         .hasAnyRole("ADMIN", "MANAGER")
 
+                        // ── Inventory ──
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/inventory/dashboard"
@@ -338,7 +375,6 @@ public class SecurityConfig {
                                 "ADMIN",
                                 "MANAGER",
                                 "RECEPTIONIST",
-                                "STAFF",
                                 "HOUSEKEEPING",
                                 "MAINTENANCE"
                         )
@@ -351,7 +387,6 @@ public class SecurityConfig {
                                 "ADMIN",
                                 "MANAGER",
                                 "RECEPTIONIST",
-                                "STAFF",
                                 "HOUSEKEEPING",
                                 "MAINTENANCE"
                         )
@@ -360,31 +395,31 @@ public class SecurityConfig {
                                 HttpMethod.GET,
                                 "/api/inventory/transactions"
                         )
-                        .hasAnyRole("ADMIN", "MANAGER", "STAFF")
+                        .hasAnyRole("ADMIN", "MANAGER")
 
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/inventory/items/*/transactions"
                         )
-                        .hasAnyRole("ADMIN", "MANAGER", "STAFF")
+                        .hasAnyRole("ADMIN", "MANAGER")
 
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/inventory/stock-in"
                         )
-                        .hasAnyRole("ADMIN", "MANAGER", "STAFF")
+                        .hasAnyRole("ADMIN", "MANAGER")
 
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/inventory/stock-out"
                         )
-                        .hasAnyRole("ADMIN", "MANAGER", "STAFF")
+                        .hasAnyRole("ADMIN", "MANAGER")
 
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/inventory/adjustment"
                         )
-                        .hasAnyRole("ADMIN", "MANAGER", "STAFF")
+                        .hasAnyRole("ADMIN", "MANAGER")
 
                         .requestMatchers(
                                 HttpMethod.POST,
@@ -412,7 +447,6 @@ public class SecurityConfig {
                                 "ADMIN",
                                 "MANAGER",
                                 "RECEPTIONIST",
-                                "STAFF",
                                 "HOUSEKEEPING",
                                 "MAINTENANCE"
                         )
@@ -425,17 +459,15 @@ public class SecurityConfig {
                                 "ADMIN",
                                 "MANAGER",
                                 "RECEPTIONIST",
-                                "STAFF",
                                 "HOUSEKEEPING",
                                 "MAINTENANCE"
                         )
 
+                        // ── Finance ──
                         .requestMatchers("/api/finance", "/api/finance/**", "/api/accountant/**")
                         .hasAnyRole("ADMIN", "MANAGER", "ACCOUNTANT")
 
-                        .requestMatchers("/api/customer", "/api/customer/**")
-                        .hasRole("CUSTOMER")
-
+                        // ── Staff records ──
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/staff"
@@ -469,6 +501,7 @@ public class SecurityConfig {
                         .hasAnyRole("ADMIN", "MANAGER")
 
 
+                        // ── Invoices ──
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/invoices/reservation/*"
@@ -477,7 +510,7 @@ public class SecurityConfig {
 
                         .requestMatchers(
                                 HttpMethod.PATCH,
-                                "/api/invoices/*/amounts"
+                                "/api/invoices/*/recalculate"
                         )
                         .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "ACCOUNTANT")
 
@@ -486,12 +519,6 @@ public class SecurityConfig {
                                 "/api/invoices/*"
                         )
                         .hasAnyRole("ADMIN", "MANAGER")
-
-                        .requestMatchers(
-                                HttpMethod.GET,
-                                "/api/invoices/my"
-                        )
-                        .hasRole("CUSTOMER")
 
                         .requestMatchers(
                                 HttpMethod.GET,
@@ -504,13 +531,14 @@ public class SecurityConfig {
                                 "/api/invoices/*",
                                 "/api/invoices/reservation/*"
                         )
-                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "CUSTOMER")
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "ACCOUNTANT")
 
+                        // ── Payments ──
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/payments"
                         )
-                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "CUSTOMER")
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST")
 
                         .requestMatchers(
                                 HttpMethod.GET,
@@ -528,30 +556,22 @@ public class SecurityConfig {
                                 HttpMethod.GET,
                                 "/api/payments/*/status"
                         )
-                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "ACCOUNTANT", "CUSTOMER")
-
-                        .requestMatchers(
-                                HttpMethod.GET,
-                                "/api/payments/my"
-                        )
-                        .hasRole("CUSTOMER")
-
-                        .requestMatchers(
-                                HttpMethod.GET,
-                                "/api/payments/invoice/*"
-                        )
-                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "CUSTOMER", "ACCOUNTANT")
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "ACCOUNTANT")
 
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/payments/*"
                         )
-                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "CUSTOMER")
+                        .hasAnyRole("ADMIN", "MANAGER", "RECEPTIONIST", "ACCOUNTANT")
 
-                        // The last two RBAC probes had no rule, so they fell
-                        // through to anyRequest().authenticated() and answered
-                        // every signed-in role — including CUSTOMER — from the
-                        // front-desk endpoint they are supposed to guard.
+                        // ── Property settings ──
+                        // Read-only configuration the management screens display.
+                        .requestMatchers(HttpMethod.GET, "/api/settings")
+                        .hasAnyRole("ADMIN", "MANAGER")
+
+                        // ── RBAC probes ──
+                        // These had no rule and answered every signed-in role from
+                        // the endpoint they are supposed to guard.
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/reception/test"

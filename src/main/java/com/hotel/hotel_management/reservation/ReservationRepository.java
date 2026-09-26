@@ -1,5 +1,6 @@
 package com.hotel.hotel_management.reservation;
 
+import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.Firestore;
 import org.springframework.stereotype.Repository;
@@ -11,12 +12,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ExecutionException;
-
-import com.google.cloud.firestore.DocumentReference;
-import java.time.Instant;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 @Repository
@@ -41,8 +36,11 @@ public class ReservationRepository {
         Map<String, Object> data = new HashMap<>();
 
         data.put("reservationId", reservation.getReservationId());
-        data.put("customerUid", reservation.getCustomerUid());
         data.put("roomId", reservation.getRoomId());
+        data.put("customerName", reservation.getCustomerName());
+        data.put("customerPhone", reservation.getCustomerPhone());
+        data.put("customerEmail", reservation.getCustomerEmail());
+        data.put("createdBy", reservation.getCreatedBy());
         data.put("checkInDate",
                 reservation.getCheckInDate().toString());
         data.put("checkOutDate",
@@ -144,38 +142,22 @@ public class ReservationRepository {
         }
     }
 
-    public List<Reservation> findByCustomerUid(String customerUid) {
-
-        try {
-            return firestore.collection("reservations")
-                    .whereEqualTo("customerUid", customerUid)
-                    .get()
-                    .get()
-                    .getDocuments()
-                    .stream()
-                    .map(this::toReservation)
-                    .toList();
-
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException(
-                    "Unable to read customer reservations", exception);
-
-        } catch (ExecutionException exception) {
-            throw new IllegalStateException(
-                    "Unable to read customer reservations", exception);
-        }
-    }
-
     private Reservation toReservation(DocumentSnapshot document) {
 
         Reservation reservation = new Reservation();
 
         reservation.setReservationId(document.getId());
-        reservation.setCustomerUid(
-                document.getString("customerUid"));
         reservation.setRoomId(
                 document.getString("roomId"));
+
+        reservation.setCustomerName(
+                document.getString("customerName"));
+        reservation.setCustomerPhone(
+                document.getString("customerPhone"));
+        reservation.setCustomerEmail(
+                document.getString("customerEmail"));
+        reservation.setCreatedBy(
+                document.getString("createdBy"));
 
         String checkInDate =
                 document.getString("checkInDate");
@@ -223,35 +205,35 @@ public class ReservationRepository {
     }
 
     public Reservation updateStatus(
-        String reservationId,
-        ReservationStatus status) {
+            String reservationId,
+            ReservationStatus status) {
 
-    DocumentReference document =
-            firestore.collection("reservations")
-                    .document(reservationId);
+        DocumentReference document =
+                firestore.collection("reservations")
+                        .document(reservationId);
 
-    Map<String, Object> updates = new HashMap<>();
-    updates.put("status", status.name());
-    updates.put("updatedAt", Instant.now());
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("status", status.name());
+        updates.put("updatedAt", Instant.now());
 
-    try {
-        document.update(updates).get();
+        try {
+            document.update(updates).get();
 
-        return findById(reservationId)
-                .orElseThrow(() ->
-                        new IllegalArgumentException(
-                                "Reservation not found"));
+            return findById(reservationId)
+                    .orElseThrow(() ->
+                            new IllegalArgumentException(
+                                    "Reservation not found"));
 
-    } catch (InterruptedException exception) {
-        Thread.currentThread().interrupt();
-        throw new IllegalStateException(
-                "Unable to update reservation status",
-                exception);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(
+                    "Unable to update reservation status",
+                    exception);
 
-    } catch (ExecutionException exception) {
-        throw new IllegalStateException(
-                "Unable to update reservation status",
-                exception);
+        } catch (ExecutionException exception) {
+            throw new IllegalStateException(
+                    "Unable to update reservation status",
+                    exception);
+        }
     }
-}
 }

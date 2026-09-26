@@ -1,3 +1,10 @@
+/**
+ * Roles a hotel employee can hold.
+ *
+ * There is no CUSTOMER role: this is a staff-operated application, and the
+ * occupant of a room is recorded on their reservation rather than given an
+ * account.
+ */
 export type UserRole =
   | 'ADMIN'
   | 'MANAGER'
@@ -5,8 +12,7 @@ export type UserRole =
   | 'HOUSEKEEPING'
   | 'MAINTENANCE'
   | 'ACCOUNTANT'
-  | 'STAFF'
-  | 'CUSTOMER';
+  | 'STAFF';
 
 export interface UserProfile {
   uid: string;

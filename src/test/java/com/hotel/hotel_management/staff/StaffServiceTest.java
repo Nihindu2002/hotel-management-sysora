@@ -90,7 +90,7 @@ class StaffServiceTest {
     }
 
     @Test
-    void createStaff_FailsWhenUserHasCustomerRole() {
+    void createStaff_FailsWhenUserHasRetiredCustomerRole() {
         CreateStaffRequest request = new CreateStaffRequest(
                 "user-customer",
                 "EMP-001",
@@ -103,7 +103,9 @@ class StaffServiceTest {
 
         User user = new User();
         user.setUid("user-customer");
-        user.setRole(Role.CUSTOMER.name());
+        // A profile left over from the retired CUSTOMER role. It is no longer a
+        // role this application recognises, so it must be refused.
+        user.setRole("CUSTOMER");
 
         when(userRepository.findByUid("user-customer")).thenReturn(Optional.of(user));
 
