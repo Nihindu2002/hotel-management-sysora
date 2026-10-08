@@ -1,5 +1,7 @@
 package com.hotel.hotel_management.invoice;
 
+import com.hotel.hotel_management.reservation.BoardPackage;
+
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -20,6 +22,8 @@ public class Invoice {
     private String roomId;
     private String roomNumber;
     private String customerName;
+    private BoardPackage boardPackage;
+    private Double packagePricePerNight;
 
     private LocalDate checkInDate;
     private LocalDate checkOutDate;
@@ -86,6 +90,22 @@ public class Invoice {
 
     public void setCustomerName(String customerName) {
         this.customerName = customerName;
+    }
+
+    public BoardPackage getBoardPackage() {
+        return boardPackage;
+    }
+
+    public void setBoardPackage(BoardPackage boardPackage) {
+        this.boardPackage = boardPackage;
+    }
+
+    public Double getPackagePricePerNight() {
+        return packagePricePerNight;
+    }
+
+    public void setPackagePricePerNight(Double packagePricePerNight) {
+        this.packagePricePerNight = packagePricePerNight;
     }
 
     public LocalDate getCheckInDate() {

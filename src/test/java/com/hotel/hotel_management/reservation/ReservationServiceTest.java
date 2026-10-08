@@ -80,6 +80,17 @@ class ReservationServiceTest {
                 roomId, "Nimal Perera", "0771234567", null, checkIn, checkOut, guests);
     }
 
+    private CreateReservationRequest request(
+            String roomId,
+            LocalDate checkIn,
+            LocalDate checkOut,
+            int guests,
+            BoardPackage boardPackage) {
+        return new CreateReservationRequest(
+                roomId, "Nimal Perera", "0771234567", null,
+                checkIn, checkOut, guests, boardPackage);
+    }
+
     // ── Booking ──
 
     @Test
@@ -106,6 +117,8 @@ class ReservationServiceTest {
         assertEquals(checkIn, created.getCheckInDate());
         assertEquals(checkOut, created.getCheckOutDate());
         assertEquals(2, created.getNumberOfGuests());
+        assertEquals(BoardPackage.ROOM_ONLY, created.getBoardPackage());
+        assertEquals(10000.0, created.getPackagePricePerNight());
         // No approval step: a booking taken at the desk is confirmed on the spot.
         assertEquals(ReservationStatus.CONFIRMED, created.getStatus());
         assertNotNull(created.getReservationId());
@@ -113,6 +126,26 @@ class ReservationServiceTest {
         verify(roomRepository).updateStatus(roomId, RoomStatus.RESERVED);
         // The bill is opened up front so there is always one to settle.
         verify(invoiceService).ensureInvoice(created);
+    }
+
+    @Test
+    void createReservation_SnapshotsSelectedBoardPackagePrice() {
+        String roomId = "room-201";
+        Room room = room(roomId, RoomStatus.AVAILABLE);
+        LocalDate checkIn = LocalDate.now().plusDays(2);
+        LocalDate checkOut = LocalDate.now().plusDays(5);
+
+        when(roomRepository.findById(roomId)).thenReturn(Optional.of(room));
+        when(reservationRepository.findByRoomId(roomId)).thenReturn(Collections.emptyList());
+        when(reservationRepository.save(any(Reservation.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        Reservation created = reservationService.createReservation(
+                request(roomId, checkIn, checkOut, 2, BoardPackage.FULL_BOARD),
+                STAFF_UID);
+
+        assertEquals(BoardPackage.FULL_BOARD, created.getBoardPackage());
+        assertEquals(21000.0, created.getPackagePricePerNight());
     }
 
     @Test

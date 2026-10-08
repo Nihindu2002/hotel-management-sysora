@@ -1,6 +1,7 @@
 import api from './api';
 import type {
   CheckoutResponse,
+  BoardPackageOption,
   CreateReservationRequest,
   Reservation,
 } from '../types/reservation';
@@ -73,6 +74,11 @@ export const getAvailableRooms = async (
   const response = await api.get<Room[]>('/reservations/availability', {
     params: { checkInDate, checkOutDate, numberOfGuests },
   });
+  return response.data;
+};
+
+export const getBoardPackageOptions = async (): Promise<BoardPackageOption[]> => {
+  const response = await api.get<BoardPackageOption[]>('/reservations/board-packages');
   return response.data;
 };
 

@@ -45,6 +45,19 @@ public record CreateReservationRequest(
 
         @NotNull
         @Min(1)
-        Integer numberOfGuests
+        Integer numberOfGuests,
+
+        BoardPackage boardPackage
 ) {
+    public CreateReservationRequest(
+            String roomId,
+            String customerName,
+            String customerPhone,
+            String customerEmail,
+            LocalDate checkInDate,
+            LocalDate checkOutDate,
+            Integer numberOfGuests) {
+        this(roomId, customerName, customerPhone, customerEmail,
+                checkInDate, checkOutDate, numberOfGuests, null);
+    }
 }

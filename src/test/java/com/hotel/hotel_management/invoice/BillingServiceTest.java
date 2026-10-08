@@ -71,6 +71,23 @@ class BillingServiceTest {
     }
 
     @Test
+    void usesTheAgreedPackageRateInsteadOfTheCurrentRoomRate() {
+        Reservation reservation = stay(3);
+        reservation.setPackagePricePerNight(31000.0);
+
+        Room changedRoom = new Room();
+        changedRoom.setRoomId("room-1");
+        changedRoom.setPricePerNight(35000.0);
+        when(roomRepository.findById("room-1")).thenReturn(Optional.of(changedRoom));
+
+        BillBreakdown bill = billingService(0).calculate(
+                reservation, List.of(), DiscountType.NONE, 0.0);
+
+        assertEquals(93000.0, bill.roomCharge());
+        assertEquals(93000.0, bill.totalAmount());
+    }
+
+    @Test
     void additionalChargesAreSummedOntoTheRoomCharge() {
         BillBreakdown bill = billingService(0).calculate(
                 stay(3),

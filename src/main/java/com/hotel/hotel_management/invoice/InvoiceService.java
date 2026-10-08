@@ -59,7 +59,7 @@ public class InvoiceService {
     }
 
     /**
-     * Creates the room-only invoice for a reservation.
+     * Creates the accommodation-only invoice for a reservation.
      *
      * @throws IllegalArgumentException if the reservation is unknown, pending,
      *         cancelled, or already has an invoice.
@@ -86,7 +86,7 @@ public class InvoiceService {
     }
 
     /**
-     * Returns the reservation's invoice, creating the room-only version if the
+     * Returns the reservation's invoice, creating the accommodation-only version if the
      * stay does not have one yet. Used by the confirmation flow, which should
      * never fail just because an invoice is already on file.
      */
@@ -260,6 +260,8 @@ public class InvoiceService {
         invoice.setRoomId(reservation.getRoomId());
         invoice.setRoomNumber(room != null ? room.getRoomNumber() : null);
         invoice.setCustomerName(reservation.getCustomerName());
+        invoice.setBoardPackage(reservation.getBoardPackage());
+        invoice.setPackagePricePerNight(reservation.getPackagePricePerNight());
 
         invoice.setCheckInDate(reservation.getCheckInDate());
         invoice.setCheckOutDate(reservation.getCheckOutDate());

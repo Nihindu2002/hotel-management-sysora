@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { getInvoiceById } from '../../services/invoiceService';
 import { getPaymentsByInvoice } from '../../services/paymentService';
 import type { Invoice } from '../../types/invoice';
+import { BOARD_PACKAGE_DETAILS } from '../../types/reservation';
 import type { Payment } from '../../types/payment';
 
 function formatMoney(value: number | null | undefined): string {
@@ -144,10 +145,26 @@ export default function InvoiceDetails() {
 
         <div className="mt-4 space-y-3 text-sm">
           <div className="flex justify-between">
-            <span className="text-gray-600">Room charge</span>
+            <span className="text-gray-600">
+              Accommodation (
+              {BOARD_PACKAGE_DETAILS[invoice.boardPackage ?? 'ROOM_ONLY'].label})
+            </span>
             <span className="font-medium text-gray-900">
               {formatMoney(invoice.roomCharge)}
             </span>
+          </div>
+          <div className="flex justify-between text-xs">
+            <span className="text-gray-500">
+              Includes{' '}
+              {BOARD_PACKAGE_DETAILS[
+                invoice.boardPackage ?? 'ROOM_ONLY'
+              ].mealsIncluded.toLowerCase()}
+            </span>
+            {invoice.packagePricePerNight != null && (
+              <span className="text-gray-500">
+                {formatMoney(invoice.packagePricePerNight)} / night
+              </span>
+            )}
           </div>
 
           {invoice.additionalCharges?.length > 0 && (

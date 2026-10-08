@@ -53,6 +53,12 @@ public class ReservationController {
                 checkInDate, checkOutDate, numberOfGuests);
     }
 
+    @Operation(summary = "Get board package options and configured premiums")
+    @GetMapping("/board-packages")
+    public List<BoardPackageOption> getBoardPackageOptions() {
+        return reservationService.getBoardPackageOptions();
+    }
+
     @Operation(summary = "Create reservation",
             description = "Takes a booking at the desk. The occupant's details are recorded on the "
                     + "reservation itself and it is confirmed immediately — no approval step.")
@@ -121,7 +127,8 @@ public class ReservationController {
     }
 
     @Operation(summary = "Generate final bill",
-            description = "Prices the stay from the room rate, the charge lines and any discount, "
+            description = "Prices the stay from the reservation's agreed board-package rate, "
+                    + "the charge lines and any discount, "
                     + "and stores the result on the invoice. Totals are always computed by the backend.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Bill calculated"),

@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   createReservation,
+  getBoardPackageOptions,
   getAvailableRooms,
 } from '../../services/reservationService';
+import type { BoardPackageCode, BoardPackageOption } from '../../types/reservation';
 import type { Room } from '../../types/room';
 
 /** Today in the format an <input type="date"> wants. */
@@ -51,12 +53,47 @@ export default function ReservationCreate() {
 
   const [rooms, setRooms] = useState<Room[] | null>(null);
   const [selectedRoomId, setSelectedRoomId] = useState<string>('');
+  const [boardPackages, setBoardPackages] = useState<BoardPackageOption[] | null>(
+    null,
+  );
+  const [selectedBoardPackage, setSelectedBoardPackage] =
+    useState<BoardPackageCode>('ROOM_ONLY');
+  const [packagesError, setPackagesError] = useState<string | null>(null);
 
   const [checking, setChecking] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const nights = nightsBetween(checkInDate, checkOutDate);
+  const selectedRoom = rooms?.find((room) => room.roomId === selectedRoomId);
+  const selectedPackage = boardPackages?.find(
+    (option) => option.code === selectedBoardPackage,
+  );
+  const packagePricePerNight =
+    selectedRoom && selectedPackage
+      ? (selectedRoom.pricePerNight ?? 0) + selectedPackage.premiumPerNight
+      : null;
+
+  useEffect(() => {
+    let ignore = false;
+
+    getBoardPackageOptions()
+      .then((options) => {
+        if (!ignore) setBoardPackages(options);
+      })
+      .catch((err: any) => {
+        if (!ignore) {
+          setPackagesError(
+            err?.response?.data?.message ||
+              'Could not load board packages. Please try again.',
+          );
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const handleCheckAvailability = async () => {
     setError(null);
@@ -85,8 +122,8 @@ export default function ReservationCreate() {
     event.preventDefault();
     setError(null);
 
-    if (!selectedRoomId) {
-      setError('Select a room before creating the reservation.');
+    if (!selectedRoomId || !selectedBoardPackage || !boardPackages) {
+      setError('Select a room and board package before creating the reservation.');
       return;
     }
 
@@ -101,6 +138,7 @@ export default function ReservationCreate() {
         checkInDate,
         checkOutDate,
         numberOfGuests,
+        boardPackage: selectedBoardPackage,
       });
 
       navigate(`/staff/reservations/${reservation.reservationId}`);
@@ -139,6 +177,14 @@ export default function ReservationCreate() {
           {error}
         </div>
       )}
+      {packagesError && (
+        <div
+          role="alert"
+          className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-800"
+        >
+          {packagesError}
+        </div>
+      )}
 
       {/* ── 1. Stay ── */}
       <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-xs">
@@ -155,6 +201,7 @@ export default function ReservationCreate() {
               onChange={(e) => {
                 setCheckInDate(e.target.value);
                 setRooms(null);
+                setSelectedRoomId('');
               }}
               className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-royal focus:ring-2 focus:ring-royal/20 focus:outline-hidden"
             />
@@ -170,6 +217,7 @@ export default function ReservationCreate() {
               onChange={(e) => {
                 setCheckOutDate(e.target.value);
                 setRooms(null);
+                setSelectedRoomId('');
               }}
               className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-royal focus:ring-2 focus:ring-royal/20 focus:outline-hidden"
             />
@@ -185,6 +233,7 @@ export default function ReservationCreate() {
               onChange={(e) => {
                 setNumberOfGuests(Number(e.target.value));
                 setRooms(null);
+                setSelectedRoomId('');
               }}
               className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-royal focus:ring-2 focus:ring-royal/20 focus:outline-hidden"
             />
@@ -261,13 +310,74 @@ export default function ReservationCreate() {
         </section>
       )}
 
-      {/* ── 3. Occupant ── */}
+      {selectedRoom && (
+        <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-xs">
+          <h2 className="text-lg font-bold text-gray-900">
+            3. Select a board package
+          </h2>
+          {boardPackages ? (
+            <>
+              <label className="mt-4 block">
+                <span className="text-sm font-medium text-gray-700">
+                  Package
+                </span>
+                <select
+                  required
+                  value={selectedBoardPackage}
+                  onChange={(event) =>
+                    setSelectedBoardPackage(
+                      event.target.value as BoardPackageCode,
+                    )
+                  }
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-royal focus:ring-2 focus:ring-royal/20 focus:outline-hidden"
+                >
+                  {boardPackages.map((option) => (
+                    <option key={option.code} value={option.code}>
+                      {option.label} — {option.mealsIncluded}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {selectedPackage && packagePricePerNight !== null && (
+                <div className="mt-4 rounded-lg bg-gray-50 p-4 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">
+                      {selectedPackage.label} per night
+                    </span>
+                    <span className="font-semibold text-gray-900">
+                      {formatMoney(packagePricePerNight)}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex justify-between">
+                    <span className="text-gray-600">
+                      {nights} {nights === 1 ? 'night' : 'nights'} total
+                    </span>
+                    <span className="font-bold text-royal">
+                      {formatMoney(packagePricePerNight * nights)}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs text-gray-500">
+                    Includes {selectedPackage.mealsIncluded.toLowerCase()}. This
+                    agreed nightly price is saved with the reservation.
+                  </p>
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="mt-3 text-sm text-gray-500">
+              Loading board package options…
+            </p>
+          )}
+        </section>
+      )}
+
+      {/* ── 4. Occupant ── */}
       <form
         onSubmit={handleSubmit}
         className="rounded-xl border border-gray-200 bg-white p-6 shadow-xs"
       >
         <h2 className="text-lg font-bold text-gray-900">
-          3. Occupant details
+          4. Occupant details
         </h2>
         <p className="mt-1 text-sm text-gray-600">
           These are recorded on the reservation itself. The hotel does not create
@@ -328,7 +438,7 @@ export default function ReservationCreate() {
           </Link>
           <button
             type="submit"
-            disabled={submitting || !selectedRoomId}
+            disabled={submitting || !selectedRoomId || !boardPackages}
             className="rounded-lg bg-royal px-4 py-2 text-sm font-semibold text-white transition hover:bg-royal/90 disabled:opacity-50"
           >
             {submitting ? 'Creating…' : 'Create reservation'}

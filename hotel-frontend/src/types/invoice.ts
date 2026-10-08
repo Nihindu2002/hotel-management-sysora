@@ -1,3 +1,5 @@
+import type { BoardPackageCode } from './reservation';
+
 export type InvoiceStatus = 'UNPAID' | 'PARTIALLY_PAID' | 'PAID';
 
 export type DiscountType = 'NONE' | 'FIXED' | 'PERCENTAGE';
@@ -20,6 +22,8 @@ export interface Invoice {
   roomId: string;
   roomNumber?: string | null;
   customerName?: string | null;
+  boardPackage?: BoardPackageCode | null;
+  packagePricePerNight?: number | null;
 
   checkInDate?: string | null;
   checkOutDate?: string | null;

@@ -1,5 +1,6 @@
 package com.hotel.hotel_management.invoice;
 
+import com.hotel.hotel_management.reservation.BoardPackage;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.Firestore;
@@ -42,6 +43,9 @@ public class InvoiceRepository {
         data.put("roomId", invoice.getRoomId());
         data.put("roomNumber", invoice.getRoomNumber());
         data.put("customerName", invoice.getCustomerName());
+        data.put("boardPackage", invoice.getBoardPackage() != null
+                ? invoice.getBoardPackage().name() : null);
+        data.put("packagePricePerNight", invoice.getPackagePricePerNight());
 
         data.put("checkInDate", invoice.getCheckInDate() != null
                 ? invoice.getCheckInDate().toString() : null);
@@ -231,6 +235,11 @@ public class InvoiceRepository {
         invoice.setRoomId(snapshot.getString("roomId"));
         invoice.setRoomNumber(snapshot.getString("roomNumber"));
         invoice.setCustomerName(snapshot.getString("customerName"));
+        String boardPackage = snapshot.getString("boardPackage");
+        if (boardPackage != null) {
+            invoice.setBoardPackage(BoardPackage.valueOf(boardPackage));
+        }
+        invoice.setPackagePricePerNight(readDouble(snapshot, "packagePricePerNight"));
 
         invoice.setCheckInDate(readLocalDate(snapshot, "checkInDate"));
         invoice.setCheckOutDate(readLocalDate(snapshot, "checkOutDate"));

@@ -9,6 +9,7 @@ import {
 import { getRoomById } from '../../services/roomService';
 import { getInvoiceByReservationId } from '../../services/invoiceService';
 import type { Reservation, ReservationStatus } from '../../types/reservation';
+import { BOARD_PACKAGE_DETAILS } from '../../types/reservation';
 import type { Room } from '../../types/room';
 import type { Invoice } from '../../types/invoice';
 
@@ -207,6 +208,10 @@ export default function ReservationDetails() {
   }
 
   const nights = nightsBetween(reservation.checkInDate, reservation.checkOutDate);
+  const packageCode = reservation.boardPackage ?? 'ROOM_ONLY';
+  const packageDetails = BOARD_PACKAGE_DETAILS[packageCode];
+  const packagePricePerNight =
+    reservation.packagePricePerNight ?? room?.pricePerNight ?? 0;
   const canCheckIn =
     reservation.status === 'CONFIRMED' && room?.status !== 'CLEANING';
 
@@ -344,6 +349,18 @@ export default function ReservationDetails() {
               </dd>
             </div>
             <div className="flex justify-between">
+              <dt className="text-gray-500">Board package</dt>
+              <dd className="font-semibold text-gray-900">
+                {packageDetails.label}
+              </dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-gray-500">Meals</dt>
+              <dd className="text-right text-gray-800">
+                {packageDetails.mealsIncluded}
+              </dd>
+            </div>
+            <div className="flex justify-between">
               <dt className="text-gray-500">Check-in</dt>
               <dd className="font-semibold text-gray-900">
                 {reservation.checkInDate}
@@ -399,9 +416,15 @@ export default function ReservationDetails() {
                   <dd className="text-gray-800">{room.floor}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-gray-500">Rate per night</dt>
+                  <dt className="text-gray-500">Room rate per night</dt>
                   <dd className="font-semibold text-gray-900">
                     {formatMoney(room.pricePerNight)}
+                  </dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-gray-500">Package rate per night</dt>
+                  <dd className="font-semibold text-gray-900">
+                    {formatMoney(packagePricePerNight)}
                   </dd>
                 </div>
                 <div className="flex justify-between">
@@ -409,9 +432,9 @@ export default function ReservationDetails() {
                   <dd className="font-semibold text-gray-800">{room.status}</dd>
                 </div>
                 <div className="flex justify-between border-t border-gray-100 pt-2 font-bold">
-                  <dt className="text-gray-900">Room charge</dt>
+                  <dt className="text-gray-900">Accommodation/package</dt>
                   <dd className="text-royal">
-                    {formatMoney(nights * room.pricePerNight)}
+                    {formatMoney(nights * packagePricePerNight)}
                   </dd>
                 </div>
               </dl>
@@ -439,10 +462,27 @@ export default function ReservationDetails() {
                   </Link>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Room charge</span>
+                  <span className="text-gray-500">
+                    Accommodation ({BOARD_PACKAGE_DETAILS[
+                      invoice.boardPackage ?? packageCode
+                    ].label})
+                  </span>
                   <span className="text-gray-900">
                     {formatMoney(invoice.roomCharge)}
                   </span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-500">
+                    Includes{' '}
+                    {BOARD_PACKAGE_DETAILS[
+                      invoice.boardPackage ?? packageCode
+                    ].mealsIncluded.toLowerCase()}
+                  </span>
+                  {invoice.packagePricePerNight != null && (
+                    <span className="text-gray-500">
+                      {formatMoney(invoice.packagePricePerNight)} / night
+                    </span>
+                  )}
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500">Additional charges</span>

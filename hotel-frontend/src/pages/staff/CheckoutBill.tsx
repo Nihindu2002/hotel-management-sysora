@@ -9,6 +9,7 @@ import {
 import { createPayment } from '../../services/paymentService';
 import type { AdditionalCharge, DiscountType, Invoice } from '../../types/invoice';
 import type { Reservation } from '../../types/reservation';
+import { BOARD_PACKAGE_DETAILS } from '../../types/reservation';
 import type { PaymentMethod } from '../../types/payment';
 
 const PAYMENT_METHODS: PaymentMethod[] = ['CASH', 'CARD', 'BANK_TRANSFER', 'ONLINE'];
@@ -420,10 +421,31 @@ export default function CheckoutBill() {
                 </div>
 
                 <div className="flex justify-between border-t border-gray-100 pt-3">
-                  <span className="text-gray-600">Room charge</span>
+                  <span className="text-gray-600">
+                    Accommodation (
+                    {BOARD_PACKAGE_DETAILS[
+                      bill.boardPackage ?? reservation?.boardPackage ?? 'ROOM_ONLY'
+                    ].label}
+                    )
+                  </span>
                   <span className="font-medium text-gray-900">
                     {formatMoney(bill.roomCharge)}
                   </span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-500">
+                    Includes{' '}
+                    {BOARD_PACKAGE_DETAILS[
+                      bill.boardPackage ??
+                        reservation?.boardPackage ??
+                        'ROOM_ONLY'
+                    ].mealsIncluded.toLowerCase()}
+                  </span>
+                  {bill.packagePricePerNight != null && (
+                    <span className="text-gray-500">
+                      {formatMoney(bill.packagePricePerNight)} / night
+                    </span>
+                  )}
                 </div>
 
                 {bill.additionalCharges?.length > 0 && (

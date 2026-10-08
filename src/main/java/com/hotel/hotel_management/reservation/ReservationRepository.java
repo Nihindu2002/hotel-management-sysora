@@ -49,6 +49,9 @@ public class ReservationRepository {
                 reservation.getNumberOfGuests());
         data.put("status",
                 reservation.getStatus().name());
+        data.put("boardPackage", reservation.getBoardPackage() != null
+                ? reservation.getBoardPackage().name() : null);
+        data.put("packagePricePerNight", reservation.getPackagePricePerNight());
         data.put("createdAt",
                 Date.from(reservation.getCreatedAt()));
         data.put("updatedAt",
@@ -189,6 +192,15 @@ public class ReservationRepository {
         if (status != null) {
             reservation.setStatus(
                     ReservationStatus.valueOf(status));
+        }
+
+        String boardPackage = document.getString("boardPackage");
+        if (boardPackage != null) {
+            reservation.setBoardPackage(BoardPackage.valueOf(boardPackage));
+        }
+        Object packagePricePerNight = document.get("packagePricePerNight");
+        if (packagePricePerNight instanceof Number price) {
+            reservation.setPackagePricePerNight(price.doubleValue());
         }
 
         reservation.setCreatedAt(

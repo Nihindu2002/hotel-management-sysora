@@ -20,7 +20,7 @@ import java.util.List;
  *
  * Order of operations, matching the printed bill:
  * <pre>
- *   room charge   = nights × room price per night
+ *   accommodation charge = nights × agreed package price per night
  *   subtotal      = room charge + additional charges
  *   discount      = fixed amount, or percentage of the subtotal (capped at it)
  *   tax           = (subtotal − discount) × configured tax rate
@@ -78,8 +78,9 @@ public class BillingService {
         Room room = roomRepository.findById(reservation.getRoomId())
                 .orElseThrow(() -> new IllegalArgumentException("Room not found"));
 
-        double pricePerNight = room.getPricePerNight() != null
-                ? room.getPricePerNight() : 0.0;
+        double pricePerNight = reservation.getPackagePricePerNight() != null
+                ? reservation.getPackagePricePerNight()
+                : room.getPricePerNight() != null ? room.getPricePerNight() : 0.0;
 
         double roomCharge = round(nights * pricePerNight);
         List<AdditionalCharge> normalisedCharges = normaliseCharges(charges);
@@ -122,7 +123,7 @@ public class BillingService {
     }
 
     /**
-     * The room-only charge, used when a booking is confirmed and the desk has
+     * The accommodation charge, used when a booking is confirmed and the desk has
      * not yet added anything at checkout.
      */
     public BillBreakdown calculateRoomChargeOnly(Reservation reservation) {

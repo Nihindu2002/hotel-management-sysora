@@ -47,6 +47,7 @@ public class ReservationService {
     private final HousekeepingService housekeepingService;
     private final InvoiceService invoiceService;
     private final NotificationService notificationService;
+    private final BoardPackagePricing boardPackagePricing;
 
     @Autowired
     public ReservationService(
@@ -54,13 +55,26 @@ public class ReservationService {
             RoomRepository roomRepository,
             HousekeepingService housekeepingService,
             @Lazy InvoiceService invoiceService,
-            NotificationService notificationService) {
+            NotificationService notificationService,
+            BoardPackagePricing boardPackagePricing) {
 
         this.reservationRepository = reservationRepository;
         this.roomRepository = roomRepository;
         this.housekeepingService = housekeepingService;
         this.invoiceService = invoiceService;
         this.notificationService = notificationService;
+        this.boardPackagePricing = boardPackagePricing;
+    }
+
+    public ReservationService(
+            ReservationRepository reservationRepository,
+            RoomRepository roomRepository,
+            HousekeepingService housekeepingService,
+            @Lazy InvoiceService invoiceService,
+            NotificationService notificationService) {
+
+        this(reservationRepository, roomRepository, housekeepingService,
+                invoiceService, notificationService, BoardPackagePricing.defaults());
     }
 
     public ReservationService(
@@ -144,6 +158,13 @@ public class ReservationService {
         reservation.setCheckOutDate(request.checkOutDate());
         reservation.setNumberOfGuests(request.numberOfGuests());
         reservation.setStatus(ReservationStatus.CONFIRMED);
+        BoardPackage boardPackage = request.boardPackage() != null
+                ? request.boardPackage() : BoardPackage.ROOM_ONLY;
+        double roomRate = room.getPricePerNight() != null
+                ? room.getPricePerNight() : 0.0;
+        reservation.setBoardPackage(boardPackage);
+        reservation.setPackagePricePerNight(
+                boardPackagePricing.getPricePerNight(roomRate, boardPackage));
 
         Reservation saved = reservationRepository.save(reservation);
 
@@ -170,6 +191,10 @@ public class ReservationService {
 
     public List<Reservation> getAllReservations() {
         return reservationRepository.findAll();
+    }
+
+    public List<BoardPackageOption> getBoardPackageOptions() {
+        return boardPackagePricing.getOptions();
     }
 
     public Reservation getReservationById(String reservationId) {

@@ -20,6 +20,8 @@ public class Reservation {
     private LocalDate checkOutDate;
     private Integer numberOfGuests;
     private ReservationStatus status;
+    private BoardPackage boardPackage;
+    private Double packagePricePerNight;
 
     /** Occupant details, entered by the member of staff creating the booking. */
     private String customerName;
@@ -78,6 +80,22 @@ public class Reservation {
 
     public void setStatus(ReservationStatus status) {
         this.status = status;
+    }
+
+    public BoardPackage getBoardPackage() {
+        return boardPackage;
+    }
+
+    public void setBoardPackage(BoardPackage boardPackage) {
+        this.boardPackage = boardPackage;
+    }
+
+    public Double getPackagePricePerNight() {
+        return packagePricePerNight;
+    }
+
+    public void setPackagePricePerNight(Double packagePricePerNight) {
+        this.packagePricePerNight = packagePricePerNight;
     }
 
     public String getCustomerName() {
