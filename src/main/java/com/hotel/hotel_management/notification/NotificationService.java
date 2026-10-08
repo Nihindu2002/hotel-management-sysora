@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -130,7 +131,13 @@ public class NotificationService {
         try {
             List<User> recipients = userRepository.findAll().stream()
                     .filter(user -> user.getRole() != null)
-                    .filter(user -> roles.contains(Role.valueOf(user.getRole())))
+                    // User documents can outlive a role that has since been
+                    // removed (for example CUSTOMER). Ignore those records so
+                    // one legacy account cannot prevent notifications reaching
+                    // every valid staff recipient.
+                    .filter(user -> Role.isStaffRole(user.getRole()))
+                    .filter(user -> roles.contains(
+                            Role.valueOf(user.getRole().toUpperCase(Locale.ROOT))))
                     .filter(User::isEnabled)
                     .toList();
 
