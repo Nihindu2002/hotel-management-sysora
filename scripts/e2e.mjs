@@ -670,7 +670,7 @@ async function main() {
   } catch (err) {
     console.error(
       `\n${c.red}Cannot reach ${API} (${err.message}).${c.reset}\n` +
-      `Start the backend first:  ./mvnw spring-boot:run`,
+      `Start the backend first:  cd backend; .\\mvnw.cmd spring-boot:run`,
     );
     process.exit(2);
   }
