@@ -342,7 +342,9 @@ export default function ReservationCreate() {
                 <div className="mt-4 rounded-lg bg-gray-50 p-4 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-600">
-                      {selectedPackage.label} per night
+                      {selectedBoardPackage === 'ROOM_ONLY'
+                        ? 'Room rate per night'
+                        : `${selectedPackage.label} per night`}
                     </span>
                     <span className="font-semibold text-gray-900">
                       {formatMoney(packagePricePerNight)}
@@ -357,8 +359,9 @@ export default function ReservationCreate() {
                     </span>
                   </div>
                   <p className="mt-2 text-xs text-gray-500">
-                    Includes {selectedPackage.mealsIncluded.toLowerCase()}. This
-                    agreed nightly price is saved with the reservation.
+                    {selectedBoardPackage === 'ROOM_ONLY'
+                      ? 'Room Only uses the room rate with no additional package charge.'
+                      : `Includes ${selectedPackage.mealsIncluded.toLowerCase()}. This agreed nightly price is saved with the reservation.`}
                   </p>
                 </div>
               )}

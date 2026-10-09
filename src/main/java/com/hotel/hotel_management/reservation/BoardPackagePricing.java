@@ -32,7 +32,9 @@ public class BoardPackagePricing {
 
     public double getPremium(BoardPackage boardPackage) {
         return switch (boardPackage) {
-            case ROOM_ONLY -> roomOnlyPremium;
+            // Accommodation is already priced on the room record; Room Only
+            // must never add a board-package premium on top of that rate.
+            case ROOM_ONLY -> 0.0;
             case BED_AND_BREAKFAST -> bedAndBreakfastPremium;
             case HALF_BOARD -> halfBoardPremium;
             case FULL_BOARD -> fullBoardPremium;
