@@ -553,7 +553,7 @@ public class SecurityConfig {
                                 HttpMethod.PATCH,
                                 "/api/payments/*/refund"
                         )
-                        .hasAnyRole("ADMIN", "MANAGER", "ACCOUNTANT")
+                        .hasAnyRole("ADMIN", "MANAGER")
 
                         .requestMatchers(
                                 HttpMethod.GET,

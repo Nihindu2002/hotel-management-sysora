@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getAllPayments, refundPayment } from '../../services/paymentService';
 import type { Payment } from '../../types/payment';
+import { useAuth } from '../../context/AuthContext';
 
 function formatMoney(value: number | null | undefined): string {
   return (value ?? 0).toLocaleString(undefined, {
@@ -23,6 +24,8 @@ function formatDateTime(value?: string): string {
  * page is the record of what was taken: how much, by which method, and by whom.
  */
 export default function Payments() {
+  const { user } = useAuth();
+  const canRefund = user?.role === 'ADMIN' || user?.role === 'MANAGER';
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -202,7 +205,7 @@ export default function Payments() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {payment.status === 'COMPLETED' && (
+                      {canRefund && payment.status === 'COMPLETED' && (
                         <button
                           type="button"
                           onClick={() => handleRefund(payment.paymentId)}
