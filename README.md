@@ -33,3 +33,15 @@ npm run dev
 
 The backend API runs on port 8080 by default. Backend testing notes are in
 [`backend/TESTING.md`](backend/TESTING.md).
+
+## Deploy the backend on Render
+
+Set the Render service **Root Directory** to `backend`, then use:
+
+- **Build Command:** `chmod +x mvnw && ./mvnw clean package -DskipTests`
+- **Start Command:** `java -jar target/hotel-management-0.0.1-SNAPSHOT.jar`
+
+Add `FIREBASE_API_KEY`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and
+`CLOUDINARY_API_SECRET` as Render environment variables. Provide the Firebase
+service account as a Render secret file and set `GOOGLE_APPLICATION_CREDENTIALS`
+to its mounted path.
