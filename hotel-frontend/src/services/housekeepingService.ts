@@ -54,10 +54,12 @@ export const assignHousekeepingTask = async (
 };
 
 export const startHousekeepingTask = async (
-  taskId: string
+  taskId: string,
+  items: { itemId: string; quantity: number }[] = [],
 ): Promise<HousekeepingTask> => {
   const response = await api.patch<HousekeepingTask>(
-    `/housekeeping/tasks/${taskId}/start`
+    `/housekeeping/tasks/${taskId}/start`,
+    { items },
   );
   return response.data;
 };

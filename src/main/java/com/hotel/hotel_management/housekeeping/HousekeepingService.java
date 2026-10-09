@@ -3,6 +3,8 @@ package com.hotel.hotel_management.housekeeping;
 import com.hotel.hotel_management.common.ForbiddenException;
 import com.hotel.hotel_management.notification.NotificationService;
 import com.hotel.hotel_management.notification.NotificationType;
+import com.hotel.hotel_management.inventory.InventoryService;
+import com.hotel.hotel_management.inventory.StockOutRequest;
 import com.hotel.hotel_management.room.Room;
 import com.hotel.hotel_management.room.RoomRepository;
 import com.hotel.hotel_management.room.RoomStatus;
@@ -27,6 +29,7 @@ public class HousekeepingService {
     private final UserRepository userRepository;
     private final StaffRepository staffRepository;
     private final NotificationService notificationService;
+    private final InventoryService inventoryService;
 
     public HousekeepingService(
             HousekeepingRepository housekeepingRepository,
@@ -34,7 +37,18 @@ public class HousekeepingService {
             UserRepository userRepository,
             StaffRepository staffRepository) {
 
-        this(housekeepingRepository, roomRepository, userRepository, staffRepository, null);
+        this(housekeepingRepository, roomRepository, userRepository, staffRepository, null, null);
+    }
+
+    public HousekeepingService(
+            HousekeepingRepository housekeepingRepository,
+            RoomRepository roomRepository,
+            UserRepository userRepository,
+            StaffRepository staffRepository,
+            NotificationService notificationService) {
+
+        this(housekeepingRepository, roomRepository, userRepository, staffRepository,
+                notificationService, null);
     }
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -43,13 +57,15 @@ public class HousekeepingService {
             RoomRepository roomRepository,
             UserRepository userRepository,
             StaffRepository staffRepository,
-            NotificationService notificationService) {
+            NotificationService notificationService,
+            InventoryService inventoryService) {
 
         this.housekeepingRepository = housekeepingRepository;
         this.roomRepository = roomRepository;
         this.userRepository = userRepository;
         this.staffRepository = staffRepository;
         this.notificationService = notificationService;
+        this.inventoryService = inventoryService;
     }
 
     public HousekeepingTask createTask(CreateHousekeepingTaskRequest request) {
@@ -132,6 +148,13 @@ public class HousekeepingService {
     }
 
     public HousekeepingTask startTask(String taskId, String staffUid) {
+        return startTask(taskId, staffUid, List.of());
+    }
+
+    public HousekeepingTask startTask(
+            String taskId,
+            String staffUid,
+            List<InventoryItemUsage> itemsUsed) {
 
         HousekeepingTask task = getTaskById(taskId);
 
@@ -154,10 +177,43 @@ public class HousekeepingService {
             throw new ForbiddenException("Staff member is not active");
         }
 
-        return housekeepingRepository.updateStatus(
+        List<InventoryItemUsage> usage = itemsUsed == null ? List.of() : itemsUsed;
+        if (!usage.isEmpty() && inventoryService == null) {
+            throw new IllegalStateException("Inventory usage is unavailable");
+        }
+        if (usage.stream().anyMatch(used -> used == null || used.itemId() == null
+                || used.quantity() == null || !Double.isFinite(used.quantity()))) {
+            throw new IllegalArgumentException("Every selected inventory item needs a valid quantity");
+        }
+        // Check the entire selection before deducting anything so an out of
+        // stock item does not leave a partially recorded supply list.
+        java.util.Map<String, Double> quantitiesByItem = usage.stream()
+                .collect(java.util.stream.Collectors.groupingBy(
+                        InventoryItemUsage::itemId,
+                        java.util.stream.Collectors.summingDouble(InventoryItemUsage::quantity)));
+        for (var selected : quantitiesByItem.entrySet()) {
+            var item = inventoryService.getItemById(selected.getKey());
+            if (item.getStatus() != com.hotel.hotel_management.inventory.InventoryStatus.ACTIVE) {
+                throw new IllegalArgumentException(item.getItemName() + " is inactive and unavailable");
+            }
+            double available = item.getQuantity() == null ? 0.0 : item.getQuantity();
+            if (selected.getValue() <= 0 || selected.getValue() > available) {
+                throw new IllegalArgumentException("Insufficient stock for " + item.getItemName()
+                        + ": requested " + selected.getValue() + ", available " + available);
+            }
+        }
+        for (var selected : quantitiesByItem.entrySet()) {
+            inventoryService.stockOut(new StockOutRequest(selected.getKey(), selected.getValue(),
+                    "Housekeeping task " + taskId, "Used for room " + task.getRoomId()), staffUid);
+        }
+
+        HousekeepingTask started = housekeepingRepository.updateStatus(
                 taskId,
                 HousekeepingTaskStatus.IN_PROGRESS,
                 Instant.now());
+        notifyHousekeepingStatus("Housekeeping started", "Room " + task.getRoomId()
+                + " cleaning has started.", taskId);
+        return started;
     }
 
     public HousekeepingTask completeTask(String taskId, String staffUid) {
@@ -202,7 +258,21 @@ public class HousekeepingService {
             }
         }
 
+        notifyHousekeepingStatus("Housekeeping completed", "Room " + task.getRoomId()
+                + " cleaning is complete.", taskId);
+
         return completedTask;
+    }
+
+    private void notifyHousekeepingStatus(String title, String message, String taskId) {
+        if (notificationService != null) {
+            notificationService.emitToRoles(
+                    java.util.EnumSet.of(com.hotel.hotel_management.user.Role.ADMIN,
+                            com.hotel.hotel_management.user.Role.MANAGER,
+                            com.hotel.hotel_management.user.Role.RECEPTIONIST),
+                    NotificationType.HOUSEKEEPING, title, message,
+                    "/housekeeping/tasks/" + taskId, taskId);
+        }
     }
 
     public HousekeepingTask cancelTask(String taskId) {

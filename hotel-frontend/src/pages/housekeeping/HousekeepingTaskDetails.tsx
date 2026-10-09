@@ -3,7 +3,6 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
   getTaskById,
-  startHousekeepingTask,
   completeHousekeepingTask,
   assignHousekeepingTask,
   cancelHousekeepingTask,
@@ -15,6 +14,7 @@ import type { HousekeepingTask, HousekeepingTaskStatus } from '../../types/house
 import type { Room } from '../../types/room';
 import type { Staff } from '../../types/staff';
 import type { UserProfile } from '../../types/user';
+import HousekeepingStartModal from './components/HousekeepingStartModal';
 
 const STATUS_BADGE: Record<HousekeepingTaskStatus, { label: string; cls: string; dot: string }> = {
   PENDING: { label: 'Pending', cls: 'bg-amber-100 text-amber-800 border-amber-200', dot: 'bg-amber-500' },
@@ -68,6 +68,7 @@ export default function HousekeepingTaskDetails() {
 
   // Action Loading
   const [actionLoading, setActionLoading] = useState(false);
+  const [startingTaskId, setStartingTaskId] = useState<string | null>(null);
 
   const fetchDetails = useCallback(async () => {
     if (!taskId) return;
@@ -146,20 +147,7 @@ export default function HousekeepingTaskDetails() {
   const canCancel = isAdminOrManager && task?.status !== 'COMPLETED' && task?.status !== 'CANCELLED';
 
   // Handle Start Task
-  const handleStartTask = async () => {
-    if (!taskId) return;
-    try {
-      setActionLoading(true);
-      setSuccessMsg(null);
-      await startHousekeepingTask(taskId);
-      setSuccessMsg('Task started successfully! Status updated to IN_PROGRESS.');
-      await fetchDetails();
-    } catch (err: any) {
-      setError(err?.response?.data?.message || 'Failed to start task.');
-    } finally {
-      setActionLoading(false);
-    }
-  };
+  const handleStartTask = () => taskId && setStartingTaskId(taskId);
 
   // Handle Complete Task
   const handleCompleteTask = async () => {
@@ -563,6 +551,16 @@ export default function HousekeepingTaskDetails() {
             </div>
           </div>
         </div>
+      )}
+      {startingTaskId && (
+        <HousekeepingStartModal
+          taskId={startingTaskId}
+          onClose={() => setStartingTaskId(null)}
+          onStarted={async () => {
+            setSuccessMsg('Task started and selected supplies were deducted from inventory.');
+            await fetchDetails();
+          }}
+        />
       )}
     </div>
   );

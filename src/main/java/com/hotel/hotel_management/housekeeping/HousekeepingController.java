@@ -104,10 +104,12 @@ public class HousekeepingController {
     @PatchMapping("/tasks/{taskId}/start")
     public ResponseEntity<HousekeepingTask> startTask(
             @PathVariable String taskId,
-            @Parameter(hidden = true) @AuthenticationPrincipal FirebaseToken token) {
+            @Parameter(hidden = true) @AuthenticationPrincipal FirebaseToken token,
+            @jakarta.validation.Valid @RequestBody(required = false) StartHousekeepingTaskRequest request) {
 
         return ResponseEntity.ok(
-                housekeepingService.startTask(taskId, token.getUid()));
+                housekeepingService.startTask(taskId, token.getUid(),
+                        request == null ? List.of() : request.items()));
     }
 
     @Operation(summary = "Complete housekeeping task", description = "Completes task and transitions room status to AVAILABLE")

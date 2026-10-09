@@ -5,7 +5,6 @@ import {
   getDashboard,
   getAllTasks,
   getMyTasks,
-  startHousekeepingTask,
   completeHousekeepingTask,
 } from '../../services/housekeepingService';
 import { getRooms } from '../../services/roomService';
@@ -15,6 +14,7 @@ import type {
   HousekeepingTaskStatus,
 } from '../../types/housekeeping';
 import type { Room } from '../../types/room';
+import HousekeepingStartModal from './components/HousekeepingStartModal';
 
 const STATUS_BADGE: Record<HousekeepingTaskStatus, { label: string; cls: string; dot: string }> = {
   PENDING: { label: 'Pending', cls: 'bg-amber-100 text-amber-800 border-amber-200', dot: 'bg-amber-500' },
@@ -52,6 +52,7 @@ export default function HousekeepingDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [startingTaskId, setStartingTaskId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -118,19 +119,7 @@ export default function HousekeepingDashboard() {
   );
 
   // Quick action for housekeeping staff: Start task
-  const handleStartTask = async (taskId: string) => {
-    try {
-      setActionLoadingId(taskId);
-      setActionSuccess(null);
-      await startHousekeepingTask(taskId);
-      setActionSuccess('Task started successfully! Status is now IN_PROGRESS.');
-      await loadData();
-    } catch (err: any) {
-      setError(err?.response?.data?.message || 'Failed to start task.');
-    } finally {
-      setActionLoadingId(null);
-    }
-  };
+  const handleStartTask = (taskId: string) => setStartingTaskId(taskId);
 
   // Quick action for housekeeping staff: Complete task
   const handleCompleteTask = async (taskId: string) => {
@@ -479,6 +468,10 @@ export default function HousekeepingDashboard() {
           </div>
         )}
       </div>
+      {startingTaskId && (
+        <HousekeepingStartModal taskId={startingTaskId} onClose={() => setStartingTaskId(null)}
+          onStarted={async () => { setActionSuccess('Task started and selected supplies were deducted from inventory.'); await loadData(); }} />
+      )}
     </div>
   );
 }
