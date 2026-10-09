@@ -252,6 +252,17 @@ public class RoomRepository {
         }
     }
 
+    public void delete(String roomId) {
+        try {
+            firestore.collection("rooms").document(roomId).delete().get();
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Unable to delete room", exception);
+        } catch (ExecutionException exception) {
+            throw new IllegalStateException("Unable to delete room", exception);
+        }
+    }
+
     private Room toRoom(DocumentSnapshot document) {
 
         Room room = new Room();

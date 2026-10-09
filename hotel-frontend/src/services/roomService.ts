@@ -81,3 +81,7 @@ export const getAvailableRooms = async (
 
   return response.data;
 };
+
+export const deleteRoom = async (roomId: string): Promise<void> => {
+  await api.delete(`/rooms/${roomId}`);
+};

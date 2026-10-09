@@ -63,6 +63,17 @@ public class RoomController {
         return roomService.updateRoom(roomId, room);
     }
 
+    @Operation(summary = "Delete a room", description = "Deletes a hotel room (Admin / Manager)")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "Room deleted"),
+            @ApiResponse(responseCode = "404", description = "Room not found")
+    })
+    @DeleteMapping("/{roomId}")
+    public ResponseEntity<Void> deleteRoom(@PathVariable String roomId) {
+        roomService.deleteRoom(roomId);
+        return ResponseEntity.noContent().build();
+    }
+
     @Operation(summary = "Update room status", description = "Updates operational status of a room (Admin / Manager)")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Room status updated"),

@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { getRooms } from "../../services/roomService";
+import { deleteRoom, getRooms } from "../../services/roomService";
 import type { Room, RoomType, RoomStatus } from "../../types/room";
 import { useAuth } from "../../context/AuthContext";
 import { roomImageSrcSet, roomImageUrl } from "../../utils/roomImage";
@@ -31,6 +31,21 @@ export default function AdminRooms() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deletingRoomId, setDeletingRoomId] = useState<string | null>(null);
+
+  const handleDelete = async (room: Room) => {
+    if (!window.confirm(`Delete room ${room.roomNumber}? This action cannot be undone.`)) return;
+    setDeletingRoomId(room.roomId);
+    setError(null);
+    try {
+      await deleteRoom(room.roomId);
+      setRooms((current) => current.filter((item) => item.roomId !== room.roomId));
+    } catch {
+      setError(`Failed to delete room ${room.roomNumber}. Please try again.`);
+    } finally {
+      setDeletingRoomId(null);
+    }
+  };
 
   const [filterType, setFilterType] = useState<FilterType>("ALL");
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("ALL");
@@ -237,6 +252,16 @@ export default function AdminRooms() {
                       >
                         Edit
                       </Link>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => void handleDelete(room)}
+                          disabled={deletingRoomId === room.roomId}
+                          className="rounded-lg border border-red-300 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                        >
+                          {deletingRoomId === room.roomId ? "Deleting…" : "Delete"}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

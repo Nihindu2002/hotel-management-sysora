@@ -32,6 +32,14 @@ public class RoomService {
                         new ResourceNotFoundException("Room not found"));
     }
 
+    public void deleteRoom(String roomId) {
+        if (roomRepository.findById(roomId).isEmpty()) {
+            throw new ResourceNotFoundException("Room not found");
+        }
+        roomRepository.delete(roomId);
+        roomRepository.clearCache();
+    }
+
     public Room createRoom(Room room) {
 
         if (room.getRoomId() == null || room.getRoomId().isBlank()) {
