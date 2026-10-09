@@ -37,7 +37,7 @@ export default function DashboardLayout() {
             to={user ? getRoleRedirectPath(user.role) : '/login'}
             className="flex items-center gap-2 text-xl font-bold tracking-tight text-gray-900"
           >
-            <span className="text-gold-ink">★</span> Hotel Management
+            Hotel Management
           </Link>
         </div>
 
