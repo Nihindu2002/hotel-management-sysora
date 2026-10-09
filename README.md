@@ -36,10 +36,10 @@ The backend API runs on port 8080 by default. Backend testing notes are in
 
 ## Deploy the backend on Render
 
-Set the Render service **Root Directory** to `backend`, then use:
-
-- **Build Command:** `chmod +x mvnw && ./mvnw clean package -DskipTests`
-- **Start Command:** `java -jar target/hotel-management-0.0.1-SNAPSHOT.jar`
+Create a Render Web Service with **Language: Docker**, set **Root Directory** to
+`backend`, and set **Dockerfile Path** to `Dockerfile`. The Dockerfile builds
+with Maven and Java 17, then runs the packaged Spring Boot application; Render
+does not need separate build or start commands.
 
 Add `FIREBASE_API_KEY`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and
 `CLOUDINARY_API_SECRET` as Render environment variables. Provide the Firebase
