@@ -289,7 +289,10 @@ public class MaintenanceService {
     }
 
     public List<MaintenanceTask> getAllTasks() {
-        return maintenanceRepository.findAll();
+        return maintenanceRepository.findAll().stream()
+                .sorted(java.util.Comparator.comparing(MaintenanceTask::getCreatedAt,
+                        java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder())))
+                .toList();
     }
 
     /**

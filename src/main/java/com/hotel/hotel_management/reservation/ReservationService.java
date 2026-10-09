@@ -190,7 +190,10 @@ public class ReservationService {
     }
 
     public List<Reservation> getAllReservations() {
-        return reservationRepository.findAll();
+        return reservationRepository.findAll().stream()
+                .sorted(java.util.Comparator.comparing(Reservation::getCreatedAt,
+                        java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder())))
+                .toList();
     }
 
     public List<BoardPackageOption> getBoardPackageOptions() {

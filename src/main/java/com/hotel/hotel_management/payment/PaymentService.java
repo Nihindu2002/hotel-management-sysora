@@ -130,7 +130,10 @@ public class PaymentService {
     }
 
     public List<Payment> getAllPayments() {
-        return paymentRepository.findAll();
+        return paymentRepository.findAll().stream()
+                .sorted(java.util.Comparator.comparing(Payment::getCreatedAt,
+                        java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder())))
+                .toList();
     }
 
     public Payment refundPayment(String paymentId, String performedBy) {

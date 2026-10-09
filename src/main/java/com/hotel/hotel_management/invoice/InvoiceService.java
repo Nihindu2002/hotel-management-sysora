@@ -160,7 +160,10 @@ public class InvoiceService {
         Map<String, Double> paidByInvoiceId = completedPaymentsByInvoice();
 
         invoices.forEach(invoice -> applyPaymentTotals(invoice, paidByInvoiceId));
-        return invoices;
+        return invoices.stream()
+                .sorted(java.util.Comparator.comparing(Invoice::getCreatedAt,
+                        java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder())))
+                .toList();
     }
 
     public Invoice getInvoiceByReservationId(String reservationId) {

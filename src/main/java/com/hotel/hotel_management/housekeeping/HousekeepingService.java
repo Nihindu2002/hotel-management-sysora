@@ -228,7 +228,10 @@ public class HousekeepingService {
     }
 
     public List<HousekeepingTask> getAllTasks() {
-        return housekeepingRepository.findAll();
+        return housekeepingRepository.findAll().stream()
+                .sorted(java.util.Comparator.comparing(HousekeepingTask::getCreatedAt,
+                        java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder())))
+                .toList();
     }
 
     /**
