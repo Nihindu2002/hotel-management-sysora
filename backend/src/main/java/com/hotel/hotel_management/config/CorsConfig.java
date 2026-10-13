@@ -15,12 +15,12 @@ import java.util.stream.Collectors;
 public class CorsConfig {
 
     @Value("${cors.allowed-origins:http://localhost:5173}")
-    private String allowedOrigins;
+    private String allowedOriginPatterns;
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.stream(allowedOrigins.split(","))
+        configuration.setAllowedOriginPatterns(Arrays.stream(allowedOriginPatterns.split(","))
                 .map(String::trim)
                 .filter(origin -> !origin.isEmpty())
                 .collect(Collectors.toList()));
