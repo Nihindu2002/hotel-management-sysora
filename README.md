@@ -44,4 +44,8 @@ does not need separate build or start commands.
 Add `FIREBASE_API_KEY`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and
 `CLOUDINARY_API_SECRET` as Render environment variables. Provide the Firebase
 service account as a Render secret file and set `GOOGLE_APPLICATION_CREDENTIALS`
-to its mounted path.
+to its mounted path. Set `CORS_ALLOWED_ORIGINS` to the exact frontend origin(s),
+comma separated, for example
+`https://hotel-management-sysora.vercel.app,https://hotel-management-sysora-f52an1lga.vercel.app`.
+The application includes these URLs as defaults; set the Render variable to
+make the production origins explicit and support future frontend URL changes.
