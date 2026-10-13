@@ -1,0 +1,11 @@
+{
+  "installCommand": "cd hotel-frontend && npm install",
+  "buildCommand": "cd hotel-frontend && npm run build",
+  "outputDirectory": "hotel-frontend/dist",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
