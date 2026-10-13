@@ -59,7 +59,9 @@ export const registerUserByAdmin = async (
  * Uses: GET /api/users/me (any authenticated role)
  */
 export const getCurrentUser = async (): Promise<UserProfile> => {
-  const response = await api.get<UserProfile>('/users/me');
+  // Auth cannot finish until this profile is loaded; allow for a cold backend
+  // start without extending the timeout for unrelated API requests.
+  const response = await api.get<UserProfile>('/users/me', { timeout: 90_000 });
   return response.data;
 };
 
