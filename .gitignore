@@ -1,4 +1,11 @@
 HELP.md
+.env
+node_modules/
+**/node_modules/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+*.log
 target/
 backend/.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/

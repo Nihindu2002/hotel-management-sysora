@@ -1,0 +1,12 @@
+{
+  "name": "hotel-management-sysora",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -k -n FRONTEND,BACKEND -c blue,green \"npm run dev --prefix hotel-frontend\" \"powershell -NoProfile -Command \\\"Set-Location backend; .\\\\mvnw.cmd spring-boot:run\\\"\""
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.6"
+  }
+}
+
