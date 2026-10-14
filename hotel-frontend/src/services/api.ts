@@ -1,7 +1,15 @@
 import axios from 'axios';
 
+// The backend serves its endpoints under /api. Vercel deployments have
+// occasionally been configured with only the Render origin, which sends
+// requests to /auth/... and bypasses both the API routes and their CORS rules.
+const configuredBaseURL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '');
+const apiBaseURL = configuredBaseURL && !/\/api$/i.test(configuredBaseURL)
+  ? `${configuredBaseURL}/api`
+  : configuredBaseURL;
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+  baseURL: apiBaseURL,
   // Axios defaults to no timeout, so a slow endpoint used to hang the UI
   // indefinitely with no error to show. Generous, because some dashboard
   // endpoints legitimately take several seconds — this is a backstop against
