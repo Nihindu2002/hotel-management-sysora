@@ -30,6 +30,12 @@ public class UserController {
             description = "Returns the authenticated user's own profile")
     @GetMapping("/me")
     public User getCurrentUser(Authentication authentication) {
+        // SessionAuthenticationFilter has already loaded this profile to build
+        // the authenticated principal. Reuse it instead of querying PostgreSQL
+        // a second time on every profile request.
+        if (authentication != null && authentication.getDetails() instanceof User profile) {
+            return profile;
+        }
         return userService.getUserByUid(resolveUid(authentication));
     }
 

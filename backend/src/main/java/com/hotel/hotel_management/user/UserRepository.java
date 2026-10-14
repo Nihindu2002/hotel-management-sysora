@@ -60,7 +60,12 @@ public class UserRepository {
         if (email == null || email.isBlank()) return Optional.empty();
         try {
             return documentStore.collection("users").whereEqualTo("email", email.trim())
-                    .get().get().getDocuments().stream().findFirst().map(this::toUser);
+                    .get().get().getDocuments().stream().findFirst().map(document -> {
+                        User user = toUser(document);
+                        userCache.put(user.getUid(), new CachedUser(user,
+                                System.currentTimeMillis() + CACHE_TTL_MS));
+                        return user;
+                    });
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Unable to find user profile", exception);
