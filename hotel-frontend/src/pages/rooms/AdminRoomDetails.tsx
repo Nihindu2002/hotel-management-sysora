@@ -280,7 +280,7 @@ export default function AdminRoomDetails() {
                 { label: "Room Number", value: room.roomNumber },
                 { label: "Room Type", value: TYPE_LABEL[room.roomType] ?? room.roomType },
                 { label: "Floor", value: `Floor ${room.floor}` },
-                { label: "Price Per Night", value: `$${room.pricePerNight?.toFixed(2)}` },
+                { label: "Price Per Night", value: `LKR ${room.pricePerNight?.toLocaleString("en-LK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
                 { label: "Current Status", value: status.label },
                 { label: "Total Images", value: String(totalImages) },
               ].map(({ label, value }) => (

@@ -235,7 +235,7 @@ export default function AdminRooms() {
                     </div>
                     <p className="mt-1 text-xs text-gray-500">Floor {room.floor}</p>
                     <p className="mt-2 text-base font-bold text-gray-900">
-                      ${room.pricePerNight?.toFixed(2)}<span className="text-xs font-normal text-gray-500"> /night</span>
+                      LKR {room.pricePerNight?.toLocaleString("en-LK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}<span className="text-xs font-normal text-gray-500"> /night</span>
                     </p>
 
                     {/* Actions */}

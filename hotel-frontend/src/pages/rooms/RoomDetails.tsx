@@ -72,7 +72,7 @@ export default function RoomDetails() {
           </p>
 
           <p className="mt-6 text-2xl font-bold">
-            {room.pricePerNight?.toLocaleString(undefined, {
+            LKR {room.pricePerNight?.toLocaleString("en-LK", {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
             })}{" "}

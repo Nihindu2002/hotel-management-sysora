@@ -233,7 +233,7 @@ export default function AdminRoomEdit() {
             {/* Price Per Night */}
             <div>
               <label className="mb-1.5 block text-sm font-medium text-gray-700">
-                Price Per Night ($) <span className="text-red-500">*</span>
+                Price Per Night (LKR) <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
