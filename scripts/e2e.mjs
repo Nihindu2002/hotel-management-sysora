@@ -16,7 +16,7 @@
  * CONFIGURATION
  *   Credentials are read from the environment so this script never holds them:
  *
- *     export E2E_CUSTOMER_EMAIL=...      E2E_CUSTOMER_PASSWORD=...
+ *     export E2E_RECEPTIONIST_EMAIL=... E2E_RECEPTIONIST_PASSWORD=...
  *     export E2E_RECEPTIONIST_EMAIL=...  E2E_RECEPTIONIST_PASSWORD=...
  *     export E2E_HOUSEKEEPING_EMAIL=...  E2E_HOUSEKEEPING_PASSWORD=...
  *     export E2E_MAINTENANCE_EMAIL=...   E2E_MAINTENANCE_PASSWORD=...
@@ -26,8 +26,7 @@
  *
  *   Optional:
  *     E2E_API_URL            default http://localhost:8080/api
- *     E2E_FIREBASE_API_KEY   default read from hotel-frontend/.env
- *     E2E_FLOWS              comma list to run only some, e.g. "rbac,payment"
+ * *     E2E_FLOWS              comma list to run only some, e.g. "rbac,payment"
  *
  * USAGE
  *   node scripts/e2e.mjs
@@ -39,30 +38,12 @@
  *   every assertion prints what it actually received so that is quick.
  */
 
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-
 // ── Config ──────────────────────────────────────────────────────────────────
 
-function firebaseKeyFromEnvFile() {
-  if (process.env.E2E_FIREBASE_API_KEY) return process.env.E2E_FIREBASE_API_KEY;
-  try {
-    const env = readFileSync(join(ROOT, 'hotel-frontend', '.env'), 'utf8');
-    const m = env.match(/^VITE_FIREBASE_API_KEY=(.+)$/m);
-    return m ? m[1].trim() : '';
-  } catch {
-    return '';
-  }
-}
-
 const API = (process.env.E2E_API_URL || 'http://localhost:8080/api').replace(/\/$/, '');
-const FIREBASE_KEY = firebaseKeyFromEnvFile();
 const ONLY = (process.env.E2E_FLOWS || '').split(',').map((s) => s.trim()).filter(Boolean);
 
-const ROLES = ['CUSTOMER', 'RECEPTIONIST', 'HOUSEKEEPING', 'MAINTENANCE', 'ACCOUNTANT', 'ADMIN', 'MANAGER'];
+const ROLES = ['RECEPTIONIST', 'HOUSEKEEPING', 'MAINTENANCE', 'ACCOUNTANT', 'ADMIN', 'MANAGER'];
 
 // ── Harness ─────────────────────────────────────────────────────────────────
 
@@ -138,21 +119,13 @@ async function api(method, path, { token, body } = {}) {
   return { status: res.status, body: parsed };
 }
 
-/** Signs in over Firebase's REST API — no Admin SDK, no service account. */
+/** Signs in through the application's local account and session endpoint. */
 async function signIn(email, password) {
-  const res = await fetch(
-    `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_KEY}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, returnSecureToken: true }),
-    },
-  );
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(`Firebase sign-in failed for ${email}: ${body?.error?.message || res.status}`);
+  const result = await api('POST', '/auth/login', { body: { email, password } });
+  if (result.status !== 200 || !result.body?.idToken) {
+    throw new Error(`Sign-in failed for ${email}: ${result.body?.message || result.status}`);
   }
-  return body.idToken;
+  return result.body.idToken;
 }
 
 function ymd(date) {
@@ -174,9 +147,9 @@ async function flowReservation() {
   currentFlow = '1. Reservation flow';
   console.log(`\n${c.cyan}${currentFlow}${c.reset}`);
 
-  await step('customer creates a reservation → PENDING', async () => {
+  await step('receptionist creates a reservation → PENDING', async () => {
     const r = await api('POST', '/reservations', {
-      token: token('CUSTOMER'),
+      token: token('RECEPTIONIST'),
       body: {
         roomId: ctx.roomId,
         checkInDate: ctx.checkIn,
@@ -310,7 +283,7 @@ async function flowPayment() {
 
   await step('partial payment → invoice PARTIALLY_PAID', async () => {
     const r = await api('POST', '/payments', {
-      token: token('CUSTOMER'),
+      token: token('RECEPTIONIST'),
       body: { invoiceId: ctx.invoiceId, reservationId: ctx.reservationId, amount: first, paymentMethod: 'CARD' },
     });
     assert(r.status === 200 || r.status === 201, `expected 2xx, got ${r.status}: ${JSON.stringify(r.body)}`);
@@ -327,7 +300,7 @@ async function flowPayment() {
 
   await step('remaining payment → invoice PAID', async () => {
     const r = await api('POST', '/payments', {
-      token: token('CUSTOMER'),
+      token: token('RECEPTIONIST'),
       body: {
         invoiceId: ctx.invoiceId,
         reservationId: ctx.reservationId,
@@ -583,12 +556,12 @@ async function flowRbac() {
 
   // Each entry: [role, method, path, body, label]. Expected: 403 for every one.
   const denied = [
-    ['CUSTOMER', 'GET', '/users', null, 'CUSTOMER → user list (admin)'],
-    ['CUSTOMER', 'GET', '/finance/transactions', null, 'CUSTOMER → finance'],
-    ['CUSTOMER', 'GET', '/inventory/items', null, 'CUSTOMER → inventory'],
-    ['CUSTOMER', 'GET', '/staff', null, 'CUSTOMER → staff list'],
-    ['CUSTOMER', 'GET', '/housekeeping/tasks', null, 'CUSTOMER → housekeeping queue'],
-    ['CUSTOMER', 'POST', '/rooms', { roomNumber: 'X', roomType: 'STANDARD', floor: 1, pricePerNight: 1 }, 'CUSTOMER → create room'],
+    ['RECEPTIONIST', 'GET', '/users', null, 'RECEPTIONIST → user list (admin)'],
+    ['RECEPTIONIST', 'GET', '/finance/transactions', null, 'RECEPTIONIST → finance'],
+    ['RECEPTIONIST', 'GET', '/inventory/items', null, 'RECEPTIONIST → inventory'],
+    ['RECEPTIONIST', 'GET', '/staff', null, 'RECEPTIONIST → staff list'],
+    ['RECEPTIONIST', 'GET', '/housekeeping/tasks', null, 'RECEPTIONIST → housekeeping queue'],
+    ['RECEPTIONIST', 'POST', '/rooms', { roomNumber: 'X', roomType: 'STANDARD', floor: 1, pricePerNight: 1 }, 'RECEPTIONIST → create room'],
 
     ['HOUSEKEEPING', 'GET', '/finance/transactions', null, 'HOUSEKEEPING → finance'],
     ['HOUSEKEEPING', 'GET', '/invoices', null, 'HOUSEKEEPING → invoices'],
@@ -603,7 +576,7 @@ async function flowRbac() {
     ['RECEPTIONIST', 'POST', '/users', {}, 'RECEPTIONIST → create user'],
     ['RECEPTIONIST', 'GET', '/reports/revenue', null, 'RECEPTIONIST → revenue report'],
 
-    ['MANAGER', 'PATCH', `/users/${ctx.customerUid}/role`, { role: 'ADMIN' }, 'MANAGER → role change (admin-only)'],
+    ['MANAGER', 'PATCH', `/users/${ctx.staffUid}/role`, { role: 'ADMIN' }, 'MANAGER → role change (admin-only)'],
     ['MANAGER', 'GET', '/admin/users', null, 'MANAGER → /api/admin/**'],
   ];
 
@@ -636,12 +609,12 @@ async function flowRbac() {
 
   // And the endpoints that must stay public.
   for (const [method, path, label] of [
-    ['GET', '/rooms', 'anonymous → public room list (must be 200)'],
-    ['GET', `/rooms/${ctx.roomId}`, 'anonymous → public room detail (must be 200)'],
+    ['GET', '/rooms', 'anonymous → room list is protected (must be 401/403)'],
+    ['GET', `/rooms/${ctx.roomId}`, 'anonymous → room detail is protected (must be 401/403)'],
   ]) {
     await step(label, async () => {
       const r = await api(method, path);
-      assert(r.status === 200, `expected 200 for a public endpoint, got ${r.status}`);
+      assert(r.status === 401 || r.status === 403, `expected 401/403 for protected endpoint, got ${r.status}`);
       return '200';
     });
   }
@@ -653,11 +626,6 @@ async function main() {
   console.log(`\n${c.yellow}⚠  This writes real data — reservation, invoice, payments, refund,`);
   console.log(`   inventory items and tasks — to the database behind ${API}.`);
   console.log(`   Point it at a development project. There is no cleanup pass.${c.reset}`);
-
-  if (!FIREBASE_KEY) {
-    console.error(`\n${c.red}No Firebase API key. Set E2E_FIREBASE_API_KEY or provide hotel-frontend/.env.${c.reset}`);
-    process.exit(2);
-  }
 
   // Preflight the backend, so an unreachable API reports as that rather than as
   // a wall of failed assertions that look like application bugs.
@@ -695,17 +663,15 @@ async function main() {
     try {
       const r = await api('GET', '/users/me', { token: tokens[role] });
       if (r.status === 200) {
-        if (role === 'CUSTOMER') ctx.customerUid = r.body?.uid;
+        if (role === 'RECEPTIONIST') ctx.staffUid = r.body?.uid;
         if (role === 'HOUSEKEEPING') ctx.housekeepingUid = r.body?.uid;
         if (role === 'MAINTENANCE') ctx.maintenanceUid = r.body?.uid;
       }
     } catch { /* identity lookup is best-effort */ }
   }
 
-  // A room to run the flows against. Room listing is public, so this needs no
-  // token — and explicitly passing none keeps it working before credentials
-  // are configured, so the run still reaches the flows and reports skips.
-  const rooms = await api('GET', '/rooms');
+  // Read a room using a staff account; room endpoints require authentication.
+  const rooms = await api('GET', '/rooms', { token: tokens.MANAGER || tokens.ADMIN });
   const list = Array.isArray(rooms.body) ? rooms.body : [];
   const room = list.find((r) => r.status === 'AVAILABLE') ?? list[0];
   if (!room) {

@@ -1,6 +1,6 @@
 package com.hotel.hotel_management.config;
 
-import com.hotel.hotel_management.security.FirebaseAuthenticationFilter;
+import com.hotel.hotel_management.security.SessionAuthenticationFilter;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,6 +14,8 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 /**
  * Role-based access for a staff-only application.
@@ -38,11 +40,11 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @Configuration
 public class SecurityConfig {
 
-    private final FirebaseAuthenticationFilter firebaseAuthenticationFilter;
+    private final SessionAuthenticationFilter sessionAuthenticationFilter;
 
     public SecurityConfig(
-            FirebaseAuthenticationFilter firebaseAuthenticationFilter) {
-        this.firebaseAuthenticationFilter = firebaseAuthenticationFilter;
+            SessionAuthenticationFilter sessionAuthenticationFilter) {
+        this.sessionAuthenticationFilter = sessionAuthenticationFilter;
     }
 
     @Bean
@@ -104,6 +106,9 @@ public class SecurityConfig {
                         .hasRole("ADMIN")
 
                         .requestMatchers(HttpMethod.PATCH, "/api/users/*/role")
+                        .hasRole("ADMIN")
+
+                        .requestMatchers(HttpMethod.PUT, "/api/users/*/password")
                         .hasRole("ADMIN")
 
                         // ── Rooms ──
@@ -597,7 +602,7 @@ public class SecurityConfig {
                             String json = formatApiErrorJson(
                                     HttpStatus.UNAUTHORIZED.value(),
                                     "Unauthorized",
-                                    "Invalid or missing Firebase ID token",
+                                    "Invalid or missing session token",
                                     request.getRequestURI()
                             );
                             response.getWriter().write(json);
@@ -616,11 +621,16 @@ public class SecurityConfig {
                 )
 
                 .addFilterBefore(
-                        firebaseAuthenticationFilter,
+                        sessionAuthenticationFilter,
                         UsernamePasswordAuthenticationFilter.class
                 );
 
         return http.build();
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder(12);
     }
 
     private String formatApiErrorJson(int status, String error, String message, String path) {

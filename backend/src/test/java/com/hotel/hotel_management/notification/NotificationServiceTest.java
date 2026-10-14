@@ -175,7 +175,7 @@ class NotificationServiceTest {
     @Test
     void emit_SwallowsStorageFailure() {
         when(notificationRepository.save(any()))
-                .thenThrow(new IllegalStateException("Firestore down"));
+                .thenThrow(new IllegalStateException("PostgreSQL down"));
 
         notificationService.emit("user-a", NotificationType.SYSTEM, "t", "m", null, null);
 
@@ -214,7 +214,7 @@ class NotificationServiceTest {
 
     @Test
     void emitToRoles_SwallowsLookupFailure() {
-        when(userRepository.findAll()).thenThrow(new IllegalStateException("Firestore down"));
+        when(userRepository.findAll()).thenThrow(new IllegalStateException("PostgreSQL down"));
 
         notificationService.emitToRoles(
                 Set.of(Role.ADMIN), NotificationType.INVENTORY, "t", "m", null, null);

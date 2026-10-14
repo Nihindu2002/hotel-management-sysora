@@ -31,12 +31,15 @@ export default function Login() {
       const profile = await login(data.email, data.password);
       navigate(getPostLoginPath(profile?.role), { replace: true });
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        if (err.message.includes('auth/')) {
+      if (typeof err === 'object' && err !== null && 'response' in err) {
+        const response = (err as { response?: { status?: number } }).response;
+        if (response?.status === 401) {
           setApiError('Invalid email or password');
-        } else {
-          setApiError(err.message);
+          return;
         }
+      }
+      if (err instanceof Error) {
+        setApiError(err.message);
       } else {
         setApiError('An unexpected error occurred');
       }

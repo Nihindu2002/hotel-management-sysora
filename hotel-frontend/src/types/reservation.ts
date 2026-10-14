@@ -49,7 +49,7 @@ export interface Reservation {
   customerName: string;
   customerPhone: string;
   customerEmail?: string | null;
-  /** Firebase uid of the staff member who took the booking. */
+  /** User ID of the staff member who took the booking. */
   createdBy?: string | null;
   checkInDate: string;
   checkOutDate: string;

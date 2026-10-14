@@ -1,6 +1,6 @@
 package com.hotel.hotel_management.payment;
 
-import com.google.firebase.auth.FirebaseToken;
+import com.hotel.hotel_management.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -34,7 +34,7 @@ public class PaymentController {
     @PostMapping
     public ResponseEntity<Payment> createPayment(
             @Valid @RequestBody CreatePaymentRequest request,
-            @Parameter(hidden = true) @AuthenticationPrincipal FirebaseToken token) {
+            @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser token) {
 
         String performedBy = token != null ? token.getUid() : null;
 
@@ -82,7 +82,7 @@ public class PaymentController {
     @PatchMapping("/{paymentId}/refund")
     public ResponseEntity<Payment> refundPayment(
             @PathVariable String paymentId,
-            @Parameter(hidden = true) @AuthenticationPrincipal FirebaseToken token) {
+            @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser token) {
 
         String performedBy = token != null ? token.getUid() : null;
 

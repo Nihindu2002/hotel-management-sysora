@@ -1,7 +1,8 @@
 package com.hotel.hotel_management.user;
 
-import com.google.firebase.auth.FirebaseAuth;
+import com.hotel.hotel_management.auth.AuthRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.mock;
@@ -13,7 +14,7 @@ class UserServiceTest {
     @Test
     void updateUserDelegatesToRepository() {
         UserRepository userRepository = mock(UserRepository.class);
-        UserService userService = new UserService(userRepository, mock(FirebaseAuth.class));
+        UserService userService = new UserService(userRepository, mock(AuthRepository.class), mock(PasswordEncoder.class));
 
         UpdateUserRequest request = new UpdateUserRequest("Ada", "Lovelace", "1234567890");
         User expected = new User();

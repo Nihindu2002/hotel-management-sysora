@@ -1,8 +1,8 @@
 package com.hotel.hotel_management.reservation;
 
-import com.google.cloud.firestore.DocumentReference;
-import com.google.cloud.firestore.DocumentSnapshot;
-import com.google.cloud.firestore.Firestore;
+import com.hotel.hotel_management.storage.PostgresDocumentStore.DocumentReference;
+import com.hotel.hotel_management.storage.PostgresDocumentStore.DocumentSnapshot;
+import com.hotel.hotel_management.storage.PostgresDocumentStore;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
@@ -17,10 +17,10 @@ import java.util.concurrent.ExecutionException;
 @Repository
 public class ReservationRepository {
 
-    private final Firestore firestore;
+    private final PostgresDocumentStore documentStore;
 
-    public ReservationRepository(Firestore firestore) {
-        this.firestore = firestore;
+    public ReservationRepository(PostgresDocumentStore documentStore) {
+        this.documentStore = documentStore;
     }
 
     public Reservation save(Reservation reservation) {
@@ -58,7 +58,7 @@ public class ReservationRepository {
                 Date.from(reservation.getUpdatedAt()));
 
         try {
-            firestore.collection("reservations")
+            documentStore.collection("reservations")
                     .document(reservation.getReservationId())
                     .set(data)
                     .get();
@@ -79,7 +79,7 @@ public class ReservationRepository {
     public Optional<Reservation> findById(String reservationId) {
 
         try {
-            DocumentSnapshot document = firestore
+            DocumentSnapshot document = documentStore
                     .collection("reservations")
                     .document(reservationId)
                     .get()
@@ -103,7 +103,7 @@ public class ReservationRepository {
     public List<Reservation> findAll() {
 
         try {
-            return firestore.collection("reservations")
+            return documentStore.collection("reservations")
                     .get()
                     .get()
                     .getDocuments()
@@ -125,7 +125,7 @@ public class ReservationRepository {
     public List<Reservation> findByRoomId(String roomId) {
 
         try {
-            return firestore.collection("reservations")
+            return documentStore.collection("reservations")
                     .whereEqualTo("roomId", roomId)
                     .get()
                     .get()
@@ -221,7 +221,7 @@ public class ReservationRepository {
             ReservationStatus status) {
 
         DocumentReference document =
-                firestore.collection("reservations")
+                documentStore.collection("reservations")
                         .document(reservationId);
 
         Map<String, Object> updates = new HashMap<>();

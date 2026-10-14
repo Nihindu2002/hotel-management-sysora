@@ -1,6 +1,6 @@
 package com.hotel.hotel_management.user;
 
-import com.google.firebase.auth.FirebaseToken;
+import com.hotel.hotel_management.security.AuthenticatedUser;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -32,32 +32,30 @@ class UserControllerTest {
     @Test
     void updateCurrentUser_UsesUidFromToken() {
         Authentication authentication = mock(Authentication.class);
-        FirebaseToken token = mock(FirebaseToken.class);
+        AuthenticatedUser token = new AuthenticatedUser("user-id-1", "ada@example.com");
         when(authentication.getPrincipal()).thenReturn(token);
-        when(token.getUid()).thenReturn("firebase-uid-1");
 
         UpdateUserRequest request = new UpdateUserRequest("Ada", "Lovelace", "0771234567");
         User updated = new User();
-        updated.setUid("firebase-uid-1");
+        updated.setUid("user-id-1");
 
-        when(userService.updateUser("firebase-uid-1", request)).thenReturn(updated);
+        when(userService.updateUser("user-id-1", request)).thenReturn(updated);
 
         User actual = userController.updateCurrentUser(authentication, request);
 
         assertSame(updated, actual);
-        verify(userService).updateUser("firebase-uid-1", request);
+        verify(userService).updateUser("user-id-1", request);
     }
 
     @Test
     void getCurrentUser_UsesUidFromToken() {
         Authentication authentication = mock(Authentication.class);
-        FirebaseToken token = mock(FirebaseToken.class);
+        AuthenticatedUser token = new AuthenticatedUser("user-id-2", "ada@example.com");
         when(authentication.getPrincipal()).thenReturn(token);
-        when(token.getUid()).thenReturn("firebase-uid-2");
 
         User profile = new User();
-        profile.setUid("firebase-uid-2");
-        when(userService.getUserByUid("firebase-uid-2")).thenReturn(profile);
+        profile.setUid("user-id-2");
+        when(userService.getUserByUid("user-id-2")).thenReturn(profile);
 
         assertSame(profile, userController.getCurrentUser(authentication));
     }

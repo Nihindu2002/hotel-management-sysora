@@ -1,6 +1,5 @@
 package com.hotel.hotel_management.exception;
 
-import com.hotel.hotel_management.auth.FirebaseOperationException;
 import com.hotel.hotel_management.common.ForbiddenException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolation;
@@ -173,21 +172,6 @@ class GlobalExceptionHandlerTest {
         assertEquals(401, body.getStatus());
         assertEquals("Unauthorized", body.getError());
         assertEquals("Full authentication is required to access this resource", body.getMessage());
-    }
-
-    @Test
-    void handleFirebaseOperationFailure_Returns500Sanitized() {
-        FirebaseOperationException ex = new FirebaseOperationException("Firebase service account secret key invalid");
-        ResponseEntity<ApiError> response = exceptionHandler.handleFirebaseOperationFailure(ex, request);
-
-        assertNotNull(response);
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
-        ApiError body = response.getBody();
-        assertNotNull(body);
-        assertEquals(500, body.getStatus());
-        assertEquals("Internal Server Error", body.getError());
-        assertFalse(body.getMessage().contains("secret key"));
-        assertEquals("Authentication service operation failed", body.getMessage());
     }
 
     @Test

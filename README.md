@@ -40,18 +40,26 @@ The backend API runs on port 8080 by default. Backend testing notes are in
 
 ## Run the full app with Docker Compose
 
-Install Docker Desktop, then place your Firebase service-account JSON at
-`firebase-service-account.json` in the repository root (or set
-`FIREBASE_SERVICE_ACCOUNT_FILE` in a root `.env` file to its path). Add the
-backend secrets you use locally to that same `.env` file, for example:
+Install Docker Desktop and set the Neon JDBC URL in the root `.env` file next to
+`compose.yaml`. Add the other backend secrets you use locally to that file:
 
 ```dotenv
-FIREBASE_SERVICE_ACCOUNT_FILE=./firebase-service-account.json
-FIREBASE_API_KEY=your_firebase_api_key
+NEON_DATABASE_URL=jdbc:postgresql://YOUR-HOST/YOUR-DATABASE?sslmode=require
+HOTEL_BOOTSTRAP_ADMIN_EMAIL=admin@example.com
+HOTEL_BOOTSTRAP_ADMIN_PASSWORD=Choose-A-Strong-Password1!
 CLOUDINARY_CLOUD_NAME=your_cloud_name
 CLOUDINARY_API_KEY=your_cloudinary_api_key
 CLOUDINARY_API_SECRET=your_cloudinary_api_secret
 ```
+
+The application runs Flyway migrations on startup. Keep `.env` private and out
+of source control. For running Spring Boot directly instead of Compose, export
+`NEON_DATABASE_URL` in the shell first.
+
+On a fresh Neon database, the bootstrap email and password create the first
+administrator at backend startup. After you sign in and confirm the account
+works, remove `HOTEL_BOOTSTRAP_ADMIN_PASSWORD` from `.env` and restart. The
+administrator can create accounts and assign roles from the Users screen.
 
 Then run from the repository root:
 
@@ -71,10 +79,11 @@ Create a Render Web Service with **Language: Docker**, set **Root Directory** to
 with Maven and Java 17, then runs the packaged Spring Boot application; Render
 does not need separate build or start commands.
 
-Add `FIREBASE_API_KEY`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and
-`CLOUDINARY_API_SECRET` as Render environment variables. Provide the Firebase
-service account as a Render secret file and set `GOOGLE_APPLICATION_CREDENTIALS`
-to its mounted path. `CORS_ALLOWED_ORIGINS` accepts comma-separated origins or
+Add `NEON_DATABASE_URL`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and
+`CLOUDINARY_API_SECRET` as Render environment variables. For a fresh database,
+also set `HOTEL_BOOTSTRAP_ADMIN_EMAIL` and `HOTEL_BOOTSTRAP_ADMIN_PASSWORD`, then
+remove the password after the first admin is created. `CORS_ALLOWED_ORIGINS`
+accepts comma-separated origins or
 origin patterns. For Vercel deployments, use
 `https://hotel-management-sysora.vercel.app,https://hotel-management-sysora-*.vercel.app`
 to allow the stable site and this project's generated deployment URLs. The

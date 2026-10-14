@@ -24,7 +24,7 @@ import type {
   FinanceTransactionType,
 } from '../../types/finance';
 
-/** Firebase UIDs are long; show enough to recognise, keep the column narrow. */
+/** User IDs are long; show enough to recognise, keep the column narrow. */
 const shorten = (value: string, length = 12): string =>
   value.length > length ? `${value.slice(0, length)}…` : value;
 

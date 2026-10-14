@@ -9,7 +9,7 @@ import java.util.Locale;
  * recorded on their reservation rather than given accounts.
  *
  * STAFF is a legacy catch-all that no seeded account uses; it is retained
- * because existing Firestore documents may still carry it and
+ * because existing PostgreSQL documents may still carry it and
  * {@code Role.valueOf} would throw on those users.
  */
 public enum Role {

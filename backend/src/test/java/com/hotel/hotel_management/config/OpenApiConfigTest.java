@@ -48,7 +48,7 @@ class OpenApiConfigTest {
         assertEquals("bearerAuth", scheme.name());
         assertEquals(SecuritySchemeType.HTTP, scheme.type());
         assertEquals("bearer", scheme.scheme());
-        assertEquals("Firebase ID Token", scheme.bearerFormat());
+        assertEquals("Session token", scheme.bearerFormat());
     }
 
     @Test

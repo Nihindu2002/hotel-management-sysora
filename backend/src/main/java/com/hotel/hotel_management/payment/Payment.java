@@ -7,7 +7,7 @@ import java.time.Instant;
  *
  * This is an accounting record, not a gateway transaction: a receptionist takes
  * cash or a card, then records what was taken. {@code recordedBy} holds the
- * Firebase uid of the staff member who entered it.
+ * user ID of the staff member who entered it.
  */
 public class Payment {
 

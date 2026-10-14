@@ -5,7 +5,7 @@ import type { AppNotification } from '../types/notification';
  * The signed-in user's notifications, newest first.
  * Uses: GET /api/notifications
  *
- * The backend scopes every call to the uid in the Firebase token, so there is no
+ * The backend scopes every call to the uid in the session token, so there is no
  * parameter that could point this at another user's mailbox.
  */
 export const getNotifications = async (): Promise<AppNotification[]> => {

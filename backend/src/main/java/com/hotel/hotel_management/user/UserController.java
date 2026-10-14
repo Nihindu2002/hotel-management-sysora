@@ -1,6 +1,6 @@
 package com.hotel.hotel_management.user;
 
-import com.google.firebase.auth.FirebaseToken;
+import com.hotel.hotel_management.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -52,7 +52,7 @@ public class UserController {
     }
 
     @Operation(summary = "Create a staff account",
-            description = "Provisions a Firebase Authentication login and profile for a hotel "
+            description = "Provisions a hotel login and profile for a hotel "
                     + "employee. The role must be a staff role.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Staff account created"),
@@ -73,7 +73,7 @@ public class UserController {
         return userService.getAllUsers();
     }
 
-    @Operation(summary = "Get user by UID", description = "Retrieves user profile details by Firebase UID (Admin only)")
+    @Operation(summary = "Get user by UID", description = "Retrieves user profile details by user ID (Admin only)")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "User found"),
             @ApiResponse(responseCode = "404", description = "User not found")
@@ -97,7 +97,7 @@ public class UserController {
         return userService.updateUser(uid, request);
     }
 
-    @Operation(summary = "Update user role", description = "Updates user role in system and Firebase custom claims (Admin only)")
+    @Operation(summary = "Update user role", description = "Updates the role stored for this staff account (Admin only)")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Role updated successfully"),
             @ApiResponse(responseCode = "404", description = "User not found")
@@ -110,8 +110,16 @@ public class UserController {
         return userService.updateRole(uid, role);
     }
 
+    @Operation(summary = "Set a staff user's password", description = "Sets a new password and revokes that user's active sessions (Admin only)")
+    @PutMapping("/{uid}/password")
+    public ResponseEntity<Void> resetPassword(@PathVariable String uid,
+            @Valid @RequestBody ResetUserPasswordRequest request) {
+        userService.resetPassword(uid, request.password());
+        return ResponseEntity.noContent().build();
+    }
+
     /**
-     * Resolves the caller's Firebase UID from the authenticated principal. The
+     * Resolves the caller's user ID from the authenticated principal. The
      * self-service /me endpoints use this so the uid never comes from input.
      */
     private String resolveUid(Authentication authentication) {
@@ -119,7 +127,7 @@ public class UserController {
             throw new BadCredentialsException("Not authenticated");
         }
 
-        if (authentication.getPrincipal() instanceof FirebaseToken token) {
+        if (authentication.getPrincipal() instanceof AuthenticatedUser token) {
             return token.getUid();
         }
 

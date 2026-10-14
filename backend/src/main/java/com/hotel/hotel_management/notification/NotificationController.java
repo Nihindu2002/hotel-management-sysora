@@ -1,6 +1,6 @@
 package com.hotel.hotel_management.notification;
 
-import com.google.firebase.auth.FirebaseToken;
+import com.hotel.hotel_management.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -15,7 +15,7 @@ import java.util.List;
 /**
  * Notifications for the signed-in user only.
  *
- * Every endpoint takes the uid from the Firebase token rather than from the URL,
+ * Every endpoint takes the uid from the session token rather than from the URL,
  * and the service re-checks ownership before mutating, so there is no path that
  * exposes or edits another user's notifications.
  */
@@ -33,7 +33,7 @@ public class NotificationController {
     @Operation(summary = "Get my notifications", description = "Returns the authenticated user's notifications, newest first")
     @GetMapping
     public List<Notification> getNotifications(
-            @Parameter(hidden = true) @AuthenticationPrincipal FirebaseToken token) {
+            @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser token) {
 
         return notificationService.getNotifications(requireUid(token));
     }
@@ -41,7 +41,7 @@ public class NotificationController {
     @Operation(summary = "Get my unread count", description = "Returns how many of the authenticated user's notifications are unread")
     @GetMapping("/unread-count")
     public UnreadCountResponse getUnreadCount(
-            @Parameter(hidden = true) @AuthenticationPrincipal FirebaseToken token) {
+            @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser token) {
 
         return new UnreadCountResponse(notificationService.getUnreadCount(requireUid(token)));
     }
@@ -55,7 +55,7 @@ public class NotificationController {
     @PatchMapping("/{notificationId}/read")
     public Notification markAsRead(
             @PathVariable String notificationId,
-            @Parameter(hidden = true) @AuthenticationPrincipal FirebaseToken token) {
+            @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser token) {
 
         return notificationService.markAsRead(requireUid(token), notificationId);
     }
@@ -63,12 +63,12 @@ public class NotificationController {
     @Operation(summary = "Mark all my notifications as read", description = "Marks every unread notification for the authenticated user as read")
     @PatchMapping("/read-all")
     public MarkAllReadResponse markAllAsRead(
-            @Parameter(hidden = true) @AuthenticationPrincipal FirebaseToken token) {
+            @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser token) {
 
         return new MarkAllReadResponse(notificationService.markAllAsRead(requireUid(token)));
     }
 
-    private String requireUid(FirebaseToken token) {
+    private String requireUid(AuthenticatedUser token) {
         if (token == null) {
             throw new BadCredentialsException("Not authenticated");
         }

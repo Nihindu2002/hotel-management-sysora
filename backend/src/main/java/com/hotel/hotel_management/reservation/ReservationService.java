@@ -104,7 +104,7 @@ public class ReservationService {
      * no customer account behind it. The occupant's details are recorded on the
      * reservation itself.
      *
-     * @param createdBy Firebase uid of the staff member taking the booking
+     * @param createdBy user ID of the staff member taking the booking
      */
     public Reservation createReservation(
             CreateReservationRequest request,

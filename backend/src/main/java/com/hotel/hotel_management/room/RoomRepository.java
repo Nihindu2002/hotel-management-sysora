@@ -1,8 +1,8 @@
 package com.hotel.hotel_management.room;
 
-import com.google.cloud.firestore.DocumentReference;
-import com.google.cloud.firestore.DocumentSnapshot;
-import com.google.cloud.firestore.Firestore;
+import com.hotel.hotel_management.storage.PostgresDocumentStore.DocumentReference;
+import com.hotel.hotel_management.storage.PostgresDocumentStore.DocumentSnapshot;
+import com.hotel.hotel_management.storage.PostgresDocumentStore;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
@@ -16,13 +16,13 @@ import java.util.concurrent.ExecutionException;
 @Repository
 public class RoomRepository {
 
-    private final Firestore firestore;
+    private final PostgresDocumentStore documentStore;
 
     /**
      * Rooms are read constantly and written rarely: the public listing, the
      * booking search, almost every dashboard and the housekeeping and
      * maintenance task forms all call findAll, and each call was a separate
-     * full-collection round trip to Firestore.
+     * full-collection round trip to PostgreSQL.
      *
      * A short TTL collapses those to one. Every write method below clears it,
      * so an edit is visible on the very next read rather than up to a minute
@@ -33,12 +33,12 @@ public class RoomRepository {
     private static final long CACHE_TTL_MS = 60 * 1000L;
     private final Object cacheLock = new Object();
 
-    public RoomRepository(Firestore firestore) {
-        this.firestore = firestore;
+    public RoomRepository(PostgresDocumentStore documentStore) {
+        this.documentStore = documentStore;
     }
 
     /**
-     * Drops the cached list so the next read goes back to Firestore. Called by
+     * Drops the cached list so the next read goes back to PostgreSQL. Called by
      * every method that writes, which is what keeps this safe to use.
      */
     public void clearCache() {
@@ -63,16 +63,16 @@ public class RoomRepository {
                 return allRoomsCache;
             }
 
-            List<Room> rooms = readAllFromFirestore();
+            List<Room> rooms = readAllFromPostgreSQL();
             allRoomsCache = rooms;
             allRoomsCacheExpiry = System.currentTimeMillis() + CACHE_TTL_MS;
             return rooms;
         }
     }
 
-    private List<Room> readAllFromFirestore() {
+    private List<Room> readAllFromPostgreSQL() {
         try {
-            return firestore.collection("rooms")
+            return documentStore.collection("rooms")
                     .get()
                     .get()
                     .getDocuments()
@@ -83,11 +83,11 @@ public class RoomRepository {
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(
-                    "Unable to read rooms from Firestore", exception);
+                    "Unable to read rooms from PostgreSQL", exception);
 
         } catch (ExecutionException exception) {
             throw new IllegalStateException(
-                    "Unable to read rooms from Firestore", exception);
+                    "Unable to read rooms from PostgreSQL", exception);
         }
     }
 
@@ -102,7 +102,7 @@ public class RoomRepository {
         }
 
         try {
-            DocumentSnapshot document = firestore
+            DocumentSnapshot document = documentStore
                     .collection("rooms")
                     .document(roomId)
                     .get()
@@ -115,11 +115,11 @@ public class RoomRepository {
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(
-                    "Unable to read room from Firestore", exception);
+                    "Unable to read room from PostgreSQL", exception);
 
         } catch (ExecutionException exception) {
             throw new IllegalStateException(
-                    "Unable to read room from Firestore", exception);
+                    "Unable to read room from PostgreSQL", exception);
         }
     }
 
@@ -149,7 +149,7 @@ public class RoomRepository {
         data.put("updatedAt", Date.from(room.getUpdatedAt()));
 
         try {
-            firestore.collection("rooms")
+            documentStore.collection("rooms")
                     .document(room.getRoomId())
                     .set(data)
                     .get();
@@ -159,11 +159,11 @@ public class RoomRepository {
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(
-                    "Unable to save room to Firestore", exception);
+                    "Unable to save room to PostgreSQL", exception);
 
         } catch (ExecutionException exception) {
             throw new IllegalStateException(
-                    "Unable to save room to Firestore", exception);
+                    "Unable to save room to PostgreSQL", exception);
         }
     }
 
@@ -177,7 +177,7 @@ public class RoomRepository {
             updates.put("pricePerNight", room.getPricePerNight());
             updates.put("updatedAt", Date.from(Instant.now()));
 
-            firestore.collection("rooms")
+            documentStore.collection("rooms")
                     .document(roomId)
                     .update(updates)
                     .get();
@@ -205,7 +205,7 @@ public class RoomRepository {
             updates.put("status", status.name());
             updates.put("updatedAt", Date.from(Instant.now()));
 
-            firestore.collection("rooms")
+            documentStore.collection("rooms")
                     .document(roomId)
                     .update(updates)
                     .get();
@@ -228,7 +228,7 @@ public class RoomRepository {
     public Room updateImages(String roomId, List<String> images) {
 
         DocumentReference document =
-                firestore.collection("rooms").document(roomId);
+                documentStore.collection("rooms").document(roomId);
 
         Map<String, Object> updates = new HashMap<>();
         updates.put("images", images);
@@ -254,7 +254,7 @@ public class RoomRepository {
 
     public void delete(String roomId) {
         try {
-            firestore.collection("rooms").document(roomId).delete().get();
+            documentStore.collection("rooms").document(roomId).delete().get();
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Unable to delete room", exception);

@@ -1,8 +1,8 @@
 package com.hotel.hotel_management.maintenance;
 
-import com.google.cloud.firestore.DocumentReference;
-import com.google.cloud.firestore.DocumentSnapshot;
-import com.google.cloud.firestore.Firestore;
+import com.hotel.hotel_management.storage.PostgresDocumentStore.DocumentReference;
+import com.hotel.hotel_management.storage.PostgresDocumentStore.DocumentSnapshot;
+import com.hotel.hotel_management.storage.PostgresDocumentStore;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
@@ -16,16 +16,16 @@ import java.util.concurrent.ExecutionException;
 @Repository
 public class MaintenanceRepository {
 
-    private final Firestore firestore;
+    private final PostgresDocumentStore documentStore;
 
-    public MaintenanceRepository(Firestore firestore) {
-        this.firestore = firestore;
+    public MaintenanceRepository(PostgresDocumentStore documentStore) {
+        this.documentStore = documentStore;
     }
 
     public MaintenanceTask save(MaintenanceTask task) {
 
         DocumentReference document =
-                firestore.collection("maintenanceTasks")
+                documentStore.collection("maintenanceTasks")
                         .document(task.getTaskId());
 
         Map<String, Object> data = new HashMap<>();
@@ -58,7 +58,7 @@ public class MaintenanceRepository {
     public Optional<MaintenanceTask> findById(String taskId) {
 
         DocumentReference document =
-                firestore.collection("maintenanceTasks")
+                documentStore.collection("maintenanceTasks")
                         .document(taskId);
 
         try {
@@ -81,7 +81,7 @@ public class MaintenanceRepository {
 
         try {
             var documents =
-                    firestore.collection("maintenanceTasks")
+                    documentStore.collection("maintenanceTasks")
                             .get()
                             .get()
                             .getDocuments();
@@ -104,7 +104,7 @@ public class MaintenanceRepository {
 
         try {
             var documents =
-                    firestore.collection("maintenanceTasks")
+                    documentStore.collection("maintenanceTasks")
                             .whereEqualTo("roomId", roomId)
                             .get()
                             .get()
@@ -128,7 +128,7 @@ public class MaintenanceRepository {
 
         try {
             var documents =
-                    firestore.collection("maintenanceTasks")
+                    documentStore.collection("maintenanceTasks")
                             .whereEqualTo("assignedTo", staffUid)
                             .get()
                             .get()
@@ -154,7 +154,7 @@ public class MaintenanceRepository {
             MaintenanceStatus status) {
 
         DocumentReference document =
-                firestore.collection("maintenanceTasks")
+                documentStore.collection("maintenanceTasks")
                         .document(taskId);
 
         Map<String, Object> updates = new HashMap<>();
@@ -198,7 +198,7 @@ public class MaintenanceRepository {
             String completionNotes) {
 
         DocumentReference document =
-                firestore.collection("maintenanceTasks")
+                documentStore.collection("maintenanceTasks")
                         .document(taskId);
 
         Map<String, Object> updates = new HashMap<>();
@@ -232,7 +232,7 @@ public class MaintenanceRepository {
 
     public MaintenanceTask updateCost(String taskId, Double actualCost) {
         DocumentReference document =
-                firestore.collection("maintenanceTasks")
+                documentStore.collection("maintenanceTasks")
                         .document(taskId);
 
         Map<String, Object> updates = new HashMap<>();
@@ -255,7 +255,7 @@ public class MaintenanceRepository {
     public void delete(String taskId) {
 
         DocumentReference document =
-                firestore.collection("maintenanceTasks")
+                documentStore.collection("maintenanceTasks")
                         .document(taskId);
 
         try {

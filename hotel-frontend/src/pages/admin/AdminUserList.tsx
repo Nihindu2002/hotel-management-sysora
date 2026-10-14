@@ -5,6 +5,7 @@ import {
   getAllUsers,
   updateUserRole,
   registerUserByAdmin,
+  resetUserPassword,
 } from "../../services/userService";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -90,6 +91,10 @@ export default function AdminUserList() {
   const [roleModal, setRoleModal] = useState<RoleModalState | null>(null);
   const [changingRole, setChangingRole] = useState(false);
   const [roleError, setRoleError] = useState<string | null>(null);
+  const [passwordResetUser, setPasswordResetUser] = useState<UserProfile | null>(null);
+  const [passwordResetValue, setPasswordResetValue] = useState("");
+  const [passwordResetError, setPasswordResetError] = useState<string | null>(null);
+  const [savingPassword, setSavingPassword] = useState(false);
 
   // Register User form
   const [registerApiError, setRegisterApiError] = useState("");
@@ -194,6 +199,26 @@ export default function AdminUserList() {
       setRoleError(msg);
     } finally {
       setChangingRole(false);
+    }
+  };
+
+  const confirmPasswordReset = async () => {
+    if (!passwordResetUser) return;
+    if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/.test(passwordResetValue)) {
+      setPasswordResetError("Use at least 8 characters with uppercase, lowercase, a number, and a symbol.");
+      return;
+    }
+    setSavingPassword(true);
+    setPasswordResetError(null);
+    try {
+      await resetUserPassword(passwordResetUser.uid, passwordResetValue);
+      setSuccessMsg(`Password reset for ${passwordResetUser.email}. Their active sessions were signed out.`);
+      setPasswordResetUser(null);
+      setPasswordResetValue("");
+    } catch (err: any) {
+      setPasswordResetError(err?.response?.data?.message || err?.response?.data?.error || "Failed to reset password.");
+    } finally {
+      setSavingPassword(false);
     }
   };
 
@@ -376,6 +401,11 @@ export default function AdminUserList() {
               currentUser={currentUser}
               emptyMessage="No staff members match your criteria."
               onOpenRoleModal={openRoleModal}
+              onResetPassword={(target) => {
+                setPasswordResetError(null);
+                setPasswordResetValue("");
+                setPasswordResetUser(target);
+              }}
             />
           )}
         </div>
@@ -689,6 +719,30 @@ export default function AdminUserList() {
           </div>
         </div>
       )}
+
+      {passwordResetUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
+            <h3 className="text-base font-semibold text-gray-900">Reset staff password</h3>
+            <p className="mt-1 text-sm text-gray-600">Set a new password for {passwordResetUser.email}. They will need to sign in again.</p>
+            <label htmlFor="reset-staff-password" className="mt-5 mb-1 block text-sm font-medium text-gray-700">New password</label>
+            <input id="reset-staff-password" type="password" autoComplete="new-password"
+              value={passwordResetValue} onChange={(event) => setPasswordResetValue(event.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" />
+            {passwordResetError && <p role="alert" className="mt-2 text-xs text-red-600">{passwordResetError}</p>}
+            <div className="mt-5 flex gap-3">
+              <button type="button" disabled={savingPassword}
+                onClick={() => setPasswordResetUser(null)}
+                className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">Cancel</button>
+              <button type="button" disabled={savingPassword || !passwordResetValue}
+                onClick={() => void confirmPasswordReset()}
+                className="flex-1 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
+                {savingPassword ? "Saving…" : "Reset password"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -699,6 +753,7 @@ interface UserTableProps {
   currentUser: UserProfile | null;
   emptyMessage: string;
   onOpenRoleModal: (user: UserProfile, newRole: UserRole) => void;
+  onResetPassword: (user: UserProfile) => void;
 }
 
 function UserTable({
@@ -706,6 +761,7 @@ function UserTable({
   currentUser,
   emptyMessage,
   onOpenRoleModal,
+  onResetPassword,
 }: UserTableProps) {
   const isSelf = (u: UserProfile) => u.uid === currentUser?.uid;
 
@@ -809,14 +865,24 @@ function UserTable({
                   {/* Actions */}
                   <td className="px-4 py-3">
                     {isSelf(u) ? (
-                      <span className="text-xs text-gray-400 italic">
-                        Cannot change own role
-                      </span>
+                      <div className="space-y-2">
+                        <span className="block text-xs text-gray-400 italic">Cannot change own role</span>
+                        <button type="button" onClick={() => onResetPassword(u)}
+                          className="rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                          Reset password
+                        </button>
+                      </div>
                     ) : (
-                      <RoleChangeDropdown
-                        user={u}
-                        onSelect={(newRole) => onOpenRoleModal(u, newRole)}
-                      />
+                      <div className="space-y-2">
+                        <RoleChangeDropdown
+                          user={u}
+                          onSelect={(newRole) => onOpenRoleModal(u, newRole)}
+                        />
+                        <button type="button" onClick={() => onResetPassword(u)}
+                          className="block rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                          Reset password
+                        </button>
+                      </div>
                     )}
                   </td>
                 </tr>

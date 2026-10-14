@@ -1,8 +1,8 @@
 package com.hotel.hotel_management.inventory;
 
-import com.google.cloud.firestore.DocumentReference;
-import com.google.cloud.firestore.DocumentSnapshot;
-import com.google.cloud.firestore.Firestore;
+import com.hotel.hotel_management.storage.PostgresDocumentStore.DocumentReference;
+import com.hotel.hotel_management.storage.PostgresDocumentStore.DocumentSnapshot;
+import com.hotel.hotel_management.storage.PostgresDocumentStore;
 import org.springframework.stereotype.Repository;
 
 import java.util.ArrayList;
@@ -15,16 +15,16 @@ import java.util.concurrent.ExecutionException;
 @Repository
 public class InventoryTransactionRepository {
 
-    private final Firestore firestore;
+    private final PostgresDocumentStore documentStore;
 
-    public InventoryTransactionRepository(Firestore firestore) {
-        this.firestore = firestore;
+    public InventoryTransactionRepository(PostgresDocumentStore documentStore) {
+        this.documentStore = documentStore;
     }
 
     public InventoryTransaction save(InventoryTransaction transaction) {
 
         DocumentReference document =
-                firestore.collection("inventoryTransactions")
+                documentStore.collection("inventoryTransactions")
                         .document(transaction.getTransactionId());
 
         Map<String, Object> data = new HashMap<>();
@@ -54,7 +54,7 @@ public class InventoryTransactionRepository {
     public Optional<InventoryTransaction> findById(String transactionId) {
 
         DocumentReference document =
-                firestore.collection("inventoryTransactions")
+                documentStore.collection("inventoryTransactions")
                         .document(transactionId);
 
         try {
@@ -77,7 +77,7 @@ public class InventoryTransactionRepository {
 
         try {
             var documents =
-                    firestore.collection("inventoryTransactions")
+                    documentStore.collection("inventoryTransactions")
                             .get()
                             .get()
                             .getDocuments();
@@ -100,7 +100,7 @@ public class InventoryTransactionRepository {
 
         try {
             var documents =
-                    firestore.collection("inventoryTransactions")
+                    documentStore.collection("inventoryTransactions")
                             .whereEqualTo("itemId", itemId)
                             .get()
                             .get()

@@ -1,9 +1,9 @@
 package com.hotel.hotel_management.invoice;
 
 import com.hotel.hotel_management.reservation.BoardPackage;
-import com.google.cloud.firestore.DocumentReference;
-import com.google.cloud.firestore.DocumentSnapshot;
-import com.google.cloud.firestore.Firestore;
+import com.hotel.hotel_management.storage.PostgresDocumentStore.DocumentReference;
+import com.hotel.hotel_management.storage.PostgresDocumentStore.DocumentSnapshot;
+import com.hotel.hotel_management.storage.PostgresDocumentStore;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
@@ -18,10 +18,10 @@ import java.util.concurrent.ExecutionException;
 @Repository
 public class InvoiceRepository {
 
-    private final Firestore firestore;
+    private final PostgresDocumentStore documentStore;
 
-    public InvoiceRepository(Firestore firestore) {
-        this.firestore = firestore;
+    public InvoiceRepository(PostgresDocumentStore documentStore) {
+        this.documentStore = documentStore;
     }
 
     /**
@@ -33,7 +33,7 @@ public class InvoiceRepository {
     public Invoice save(Invoice invoice) {
 
         DocumentReference document =
-                firestore.collection("invoices")
+                documentStore.collection("invoices")
                         .document(invoice.getInvoiceId());
 
         Map<String, Object> data = new HashMap<>();
@@ -89,7 +89,7 @@ public class InvoiceRepository {
     public Optional<Invoice> findById(String invoiceId) {
 
         DocumentReference document =
-                firestore.collection("invoices")
+                documentStore.collection("invoices")
                         .document(invoiceId);
 
         try {
@@ -117,7 +117,7 @@ public class InvoiceRepository {
 
         try {
             var documents =
-                    firestore.collection("invoices")
+                    documentStore.collection("invoices")
                             .whereEqualTo("reservationId", reservationId)
                             .get()
                             .get()
@@ -143,7 +143,7 @@ public class InvoiceRepository {
     public List<Invoice> findAll() {
 
         try {
-            return firestore.collection("invoices")
+            return documentStore.collection("invoices")
                     .get()
                     .get()
                     .getDocuments()
@@ -165,7 +165,7 @@ public class InvoiceRepository {
     public Invoice updateStatus(String invoiceId, InvoiceStatus status) {
 
         DocumentReference document =
-                firestore.collection("invoices")
+                documentStore.collection("invoices")
                         .document(invoiceId);
 
         Map<String, Object> updates = new HashMap<>();
@@ -193,7 +193,7 @@ public class InvoiceRepository {
     public void delete(String invoiceId) {
 
         DocumentReference document =
-                firestore.collection("invoices")
+                documentStore.collection("invoices")
                         .document(invoiceId);
 
         try {

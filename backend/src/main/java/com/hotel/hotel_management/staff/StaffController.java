@@ -50,7 +50,7 @@ public class StaffController {
         return ResponseEntity.ok(staffService.getStaffById(staffId));
     }
 
-    @Operation(summary = "Get staff by user UID", description = "Retrieves staff details linked to a Firebase user UID")
+    @Operation(summary = "Get staff by user UID", description = "Retrieves staff details linked to a user ID")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Staff found"),
             @ApiResponse(responseCode = "404", description = "Staff not found")

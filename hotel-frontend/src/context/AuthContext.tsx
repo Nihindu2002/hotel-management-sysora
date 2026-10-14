@@ -5,20 +5,13 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import {
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  signOut,
-  type User,
-} from 'firebase/auth';
 
-import { auth } from '../lib/firebase';
 import { getCurrentUser } from '../services/userService';
+import { getCurrentToken, login as loginWithPassword, logout as logoutSession } from '../services/authService';
 import type { UserProfile } from '../types/user';
 
 export interface AuthContextType {
   user: UserProfile | null;
-  firebaseUser: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<UserProfile>;
   logout: () => Promise<void>;
@@ -29,16 +22,13 @@ export interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    const loadSession = async () => {
       try {
-        setFirebaseUser(currentUser);
-
-        if (currentUser) {
+        if (getCurrentToken()) {
           const profile = await getCurrentUser();
           setUser(profile);
         } else {
@@ -47,18 +37,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         console.error('Failed to load user profile:', error);
         setUser(null);
+        await logoutSession();
       } finally {
         setLoading(false);
       }
-    });
-
-    return unsubscribe;
+    };
+    void loadSession();
   }, []);
 
   const login = async (email: string, password: string): Promise<UserProfile> => {
     setLoading(true);
-    await signInWithEmailAndPassword(auth, email, password);
     try {
+      await loginWithPassword(email, password);
       const profile = await getCurrentUser();
       setUser(profile);
       return profile;
@@ -71,9 +61,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    await signOut(auth);
+    await logoutSession();
     setUser(null);
-    setFirebaseUser(null);
   };
 
   const refreshProfile = async (): Promise<UserProfile> => {
@@ -86,7 +75,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
-        firebaseUser,
         loading,
         login,
         logout,

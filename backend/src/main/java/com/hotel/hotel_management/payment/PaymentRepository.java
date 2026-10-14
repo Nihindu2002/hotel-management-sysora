@@ -1,7 +1,7 @@
 package com.hotel.hotel_management.payment;
 
-import com.google.cloud.firestore.DocumentReference;
-import com.google.cloud.firestore.Firestore;
+import com.hotel.hotel_management.storage.PostgresDocumentStore.DocumentReference;
+import com.hotel.hotel_management.storage.PostgresDocumentStore;
 import org.springframework.stereotype.Repository;
 
 import java.util.HashMap;
@@ -12,16 +12,16 @@ import java.util.concurrent.ExecutionException;
 @Repository
 public class PaymentRepository {
 
-    private final Firestore firestore;
+    private final PostgresDocumentStore documentStore;
 
-    public PaymentRepository(Firestore firestore) {
-        this.firestore = firestore;
+    public PaymentRepository(PostgresDocumentStore documentStore) {
+        this.documentStore = documentStore;
     }
 
     public Payment save(Payment payment) {
 
         DocumentReference document =
-                firestore.collection("payments")
+                documentStore.collection("payments")
                         .document(payment.getPaymentId());
 
         Map<String, Object> data = new HashMap<>();
@@ -54,7 +54,7 @@ public class PaymentRepository {
     public Optional<Payment> findById(String paymentId) {
 
         DocumentReference document =
-                firestore.collection("payments")
+                documentStore.collection("payments")
                         .document(paymentId);
 
         try {
@@ -118,7 +118,7 @@ public class PaymentRepository {
 
     try {
         var documents =
-                firestore.collection("payments")
+                documentStore.collection("payments")
                         .whereEqualTo("invoiceId", invoiceId)
                         .whereEqualTo(
                                 "status",
@@ -157,7 +157,7 @@ public java.util.List<Payment> findByInvoiceId(
 
     try {
         var documents =
-                firestore.collection("payments")
+                documentStore.collection("payments")
                         .whereEqualTo("invoiceId", invoiceId)
                         .get()
                         .get()
@@ -225,7 +225,7 @@ public java.util.List<Payment> findAll() {
 
     try {
         var documents =
-                firestore.collection("payments")
+                documentStore.collection("payments")
                         .get()
                         .get()
                         .getDocuments();
@@ -287,7 +287,7 @@ public Payment updateStatus(
         PaymentStatus status) {
 
     DocumentReference document =
-            firestore.collection("payments")
+            documentStore.collection("payments")
                     .document(paymentId);
 
     java.util.Map<String, Object> updates =
@@ -320,7 +320,7 @@ public boolean hasPaymentsForInvoice(String invoiceId) {
 
     try {
         var documents =
-                firestore.collection("payments")
+                documentStore.collection("payments")
                         .whereEqualTo("invoiceId", invoiceId)
                         .limit(1)
                         .get()
@@ -345,7 +345,7 @@ public double getTotalRefundedForInvoice(String invoiceId) {
 
     try {
         var documents =
-                firestore.collection("payments")
+                documentStore.collection("payments")
                         .whereEqualTo("invoiceId", invoiceId)
                         .whereEqualTo(
                                 "status",

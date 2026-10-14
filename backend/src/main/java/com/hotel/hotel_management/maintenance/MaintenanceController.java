@@ -1,5 +1,5 @@
 package com.hotel.hotel_management.maintenance;
-import com.google.firebase.auth.FirebaseToken;
+import com.hotel.hotel_management.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -31,7 +31,7 @@ public class MaintenanceController {
     @PostMapping("/tasks")
     public ResponseEntity<MaintenanceTask> createTask(
             @Valid @RequestBody CreateMaintenanceTaskRequest request,
-            @Parameter(hidden = true) @AuthenticationPrincipal FirebaseToken token) {
+            @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser token) {
 
         return ResponseEntity.ok(
                 maintenanceService.createTask(
@@ -88,7 +88,7 @@ public class MaintenanceController {
     @Operation(summary = "Get my maintenance tasks", description = "Retrieves tasks assigned to current maintenance staff")
     @GetMapping("/my")
     public ResponseEntity<List<MaintenanceTask>> getMyTasks(
-            @Parameter(hidden = true) @AuthenticationPrincipal FirebaseToken token) {
+            @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser token) {
 
         return ResponseEntity.ok(
                 maintenanceService.getMyTasks(token.getUid()));
@@ -118,7 +118,7 @@ public class MaintenanceController {
     @PatchMapping("/tasks/{taskId}/start")
     public ResponseEntity<MaintenanceTask> startTask(
             @PathVariable String taskId,
-            @Parameter(hidden = true) @AuthenticationPrincipal FirebaseToken token) {
+            @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser token) {
 
         return ResponseEntity.ok(
                 maintenanceService.startTask(taskId, token.getUid()));
@@ -134,7 +134,7 @@ public class MaintenanceController {
     public ResponseEntity<MaintenanceTask> completeTask(
             @PathVariable String taskId,
             @RequestBody(required = false) CompleteMaintenanceTaskRequest request,
-            @Parameter(hidden = true) @AuthenticationPrincipal FirebaseToken token) {
+            @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser token) {
 
         Double actualCost = request != null ? request.actualCost() : 0.0;
         String completionNotes = request != null ? request.completionNotes() : null;
@@ -157,7 +157,7 @@ public class MaintenanceController {
     public ResponseEntity<MaintenanceTask> updateTaskCost(
             @PathVariable String taskId,
             @Valid @RequestBody UpdateMaintenanceCostRequest request,
-            @Parameter(hidden = true) @AuthenticationPrincipal FirebaseToken token) {
+            @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser token) {
 
         return ResponseEntity.ok(
                 maintenanceService.updateTaskCost(

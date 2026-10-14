@@ -1,7 +1,7 @@
 package com.hotel.hotel_management.notification;
 
 /**
- * What produced a notification. Stored as a string in Firestore, so the wire
+ * What produced a notification. Stored as a string in PostgreSQL, so the wire
  * values are these names.
  */
 public enum NotificationType {

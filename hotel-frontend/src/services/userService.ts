@@ -27,10 +27,14 @@ export const updateUserRole = async (uid: string, role: UserRole): Promise<UserP
   return response.data;
 };
 
+export const resetUserPassword = async (uid: string, password: string): Promise<void> => {
+  await api.put(`/users/${uid}/password`, { password });
+};
+
 /**
  * Provisions a staff login (ADMIN only).
  *
- * The backend creates the Firebase Authentication account and the profile in
+ * The backend creates the hotel login account and the profile in
  * one step, with the role that was chosen here. There is no customer role: this
  * application only has staff accounts.
  */
@@ -80,7 +84,7 @@ export interface UpdateProfileRequest {
  * Updates the signed-in user's own profile.
  * Uses: PUT /api/users/me
  *
- * The backend resolves the target account from the Firebase token, so this can
+ * The backend resolves the target account from the session token, so this can
  * only ever modify the caller's own record.
  */
 export const updateProfile = async (

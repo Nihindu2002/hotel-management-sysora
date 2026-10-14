@@ -26,7 +26,7 @@ public class StaffService {
      * Guards the backfill so only one caller runs it at a time. The old code
      * used `synchronized`, which made every *other* caller block on the
      * monitor for the whole duration — and it held that monitor across several
-     * Firestore round trips. A caller that loses this race returns the current
+     * PostgreSQL round trips. A caller that loses this race returns the current
      * list immediately instead of queueing.
      */
     private final java.util.concurrent.atomic.AtomicBoolean backfillRunning =
@@ -256,7 +256,7 @@ public class StaffService {
                 staffRepository.clearCache();
             }
         } catch (Exception ignored) {
-            // Gracefully ignore if firestore query fails
+            // Gracefully ignore if documentStore query fails
         }
 
         return staffList;

@@ -1,5 +1,5 @@
 package com.hotel.hotel_management.finance;
-import com.google.firebase.auth.FirebaseToken;
+import com.hotel.hotel_management.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -33,7 +33,7 @@ public class FinanceController {
     @PostMapping("/transactions")
     public ResponseEntity<FinanceTransaction> createTransaction(
             @RequestBody CreateFinanceTransactionRequest request,
-            @Parameter(hidden = true) @AuthenticationPrincipal FirebaseToken token) {
+            @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser token) {
 
         String performedBy = token != null ? token.getUid() : "SYSTEM";
         return ResponseEntity.status(HttpStatus.CREATED)

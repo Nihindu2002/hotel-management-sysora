@@ -1,6 +1,6 @@
 package com.hotel.hotel_management.reservation;
 
-import com.google.firebase.auth.FirebaseToken;
+import com.hotel.hotel_management.security.AuthenticatedUser;
 import com.hotel.hotel_management.invoice.Invoice;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -71,7 +71,7 @@ public class ReservationController {
     @ResponseStatus(HttpStatus.CREATED)
     public Reservation createReservation(
             @Valid @RequestBody CreateReservationRequest request,
-            @Parameter(hidden = true) @AuthenticationPrincipal FirebaseToken token) {
+            @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser token) {
 
         return reservationService.createReservation(
                 request,

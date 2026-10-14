@@ -1,89 +1,52 @@
 package com.hotel.hotel_management.auth;
 
-import com.google.firebase.auth.FirebaseAuth;
+import com.hotel.hotel_management.user.User;
+import com.hotel.hotel_management.user.UserRepository;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientResponseException;
-import org.springframework.web.server.ResponseStatusException;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
-import java.lang.reflect.Field;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AuthServiceTest {
-
     @Test
-    void loginReturnsMappedFirebaseResponse() throws Exception {
-        FirebaseAuth firebaseAuth = mock(FirebaseAuth.class);
-        AuthService service = new AuthService(firebaseAuth, "test-api-key");
+    void loginIssuesSessionForValidCredentials() {
+        AuthRepository authRepository = mock(AuthRepository.class);
+        UserRepository userRepository = mock(UserRepository.class);
+        PasswordEncoder encoder = mock(PasswordEncoder.class);
+        AuthService service = new AuthService(authRepository, userRepository, encoder);
+        when(authRepository.findByEmail("user@example.com")).thenReturn(Optional.of(
+                new AuthRepository.Account("uid-1", "user@example.com", "hash", true)));
+        when(encoder.matches("Password1!", "hash")).thenReturn(true);
+        User profile = new User();
+        profile.setUid("uid-1");
+        profile.setEmail("user@example.com");
+        profile.setEnabled(true);
+        when(userRepository.findByUid("uid-1")).thenReturn(Optional.of(profile));
+        when(authRepository.createSession("uid-1")).thenReturn("session-token");
 
-        RestClient restClient = mock(RestClient.class);
-        RestClient.RequestBodyUriSpec requestBodyUriSpec = mock(RestClient.RequestBodyUriSpec.class);
-        RestClient.RequestBodySpec requestBodySpec = mock(RestClient.RequestBodySpec.class);
-        RestClient.ResponseSpec responseSpec = mock(RestClient.ResponseSpec.class);
+        LoginResponse result = service.login(new LoginRequest("user@example.com", "Password1!"));
 
-        when(restClient.post()).thenReturn(requestBodyUriSpec);
-        when(requestBodyUriSpec.uri("https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=test-api-key"))
-                .thenReturn(requestBodySpec);
-        when(requestBodySpec.body(any(LoginFirebaseRequest.class))).thenReturn(requestBodySpec);
-        when(requestBodySpec.retrieve()).thenReturn(responseSpec);
-        when(responseSpec.body(LoginFirebaseResponse.class)).thenReturn(new LoginFirebaseResponse(
-                "id-token",
-                "refresh-token",
-                "local-id",
-                "user@example.com",
-                "3600"
-        ));
-
-        Field restClientField = AuthService.class.getDeclaredField("restClient");
-        restClientField.setAccessible(true);
-        restClientField.set(service, restClient);
-
-        LoginResponse response = service.login(new LoginRequest("user@example.com", "Password1!"));
-
-        assertEquals("Login successful", response.message());
-        assertEquals("id-token", response.idToken());
-        assertEquals("refresh-token", response.refreshToken());
-        assertEquals("local-id", response.localId());
-        assertEquals("user@example.com", response.email());
-        assertEquals("3600", response.expiresIn());
+        assertEquals("Login successful", result.message());
+        assertEquals("session-token", result.idToken());
+        assertEquals("uid-1", result.localId());
+        assertEquals("28800", result.expiresIn());
     }
 
     @Test
-    void loginThrowsUnauthorizedWhenFirebaseRejectsCredentials() throws Exception {
-        FirebaseAuth firebaseAuth = mock(FirebaseAuth.class);
-        AuthService service = new AuthService(firebaseAuth, "test-api-key");
+    void loginRejectsInvalidPassword() {
+        AuthRepository authRepository = mock(AuthRepository.class);
+        AuthService service = new AuthService(authRepository, mock(UserRepository.class), mock(PasswordEncoder.class));
+        when(authRepository.findByEmail("user@example.com")).thenReturn(Optional.of(
+                new AuthRepository.Account("uid-1", "user@example.com", "hash", true)));
 
-        RestClient restClient = mock(RestClient.class);
-        RestClient.RequestBodyUriSpec requestBodyUriSpec = mock(RestClient.RequestBodyUriSpec.class);
-        RestClient.RequestBodySpec requestBodySpec = mock(RestClient.RequestBodySpec.class);
-
-        when(restClient.post()).thenReturn(requestBodyUriSpec);
-        when(requestBodyUriSpec.uri("https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=test-api-key"))
-                .thenReturn(requestBodySpec);
-        when(requestBodySpec.body(any(LoginFirebaseRequest.class))).thenReturn(requestBodySpec);
-        when(requestBodySpec.retrieve()).thenThrow(new RestClientResponseException(
-                "INVALID_PASSWORD",
-                400,
-                "Bad Request",
-                null,
-                null,
-                null
-        ));
-
-        Field restClientField = AuthService.class.getDeclaredField("restClient");
-        restClientField.setAccessible(true);
-        restClientField.set(service, restClient);
-
-        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+        assertThrows(BadCredentialsException.class,
                 () -> service.login(new LoginRequest("user@example.com", "WrongPassword1!")));
-
-        assertEquals(HttpStatus.UNAUTHORIZED, exception.getStatusCode());
-        assertEquals("Invalid email or password", exception.getReason());
     }
 }

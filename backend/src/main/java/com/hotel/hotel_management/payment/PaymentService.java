@@ -53,7 +53,7 @@ public class PaymentService {
     }
 
     /**
-     * @param performedBy Firebase uid of the staff member recording the payment
+     * @param performedBy user ID of the staff member recording the payment
      */
     public Payment createPayment(CreatePaymentRequest request, String performedBy) {
 

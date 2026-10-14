@@ -1,37 +1,31 @@
 package com.hotel.hotel_management.user;
 
-import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.auth.FirebaseAuthException;
-import com.google.firebase.auth.UserRecord;
+import com.hotel.hotel_management.auth.AuthRepository;
 import com.hotel.hotel_management.auth.ConflictException;
-import com.hotel.hotel_management.auth.FirebaseOperationException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 @Service
 public class UserService {
-
-    private static final Logger logger = LoggerFactory.getLogger(UserService.class);
-
     private final UserRepository userRepository;
-    private final FirebaseAuth firebaseAuth;
+    private final AuthRepository authRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    public UserService(UserRepository userRepository, FirebaseAuth firebaseAuth) {
+    public UserService(UserRepository userRepository, AuthRepository authRepository,
+            PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
-        this.firebaseAuth = firebaseAuth;
+        this.authRepository = authRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
-    public List<User> getAllUsers() {
-        return userRepository.findAll();
-    }
+    public List<User> getAllUsers() { return userRepository.findAll(); }
 
     public User getUserByUid(String uid) {
-        return userRepository.findByUid(uid)
-                .orElseThrow(() ->
-                        new RuntimeException("User not found"));
+        return userRepository.findByUid(uid).orElseThrow(() -> new RuntimeException("User not found"));
     }
 
     public User updateUser(String uid, UpdateUserRequest request) {
@@ -42,70 +36,28 @@ public class UserService {
         return userRepository.updateRole(uid, role);
     }
 
-    /**
-     * Provisions a staff login.
-     *
-     * Creates the Firebase Authentication account first, then the profile that
-     * carries the role. If the profile write fails the Firebase account is
-     * rolled back, so a half-created user cannot be left behind — one that could
-     * sign in but would be rejected by the token filter for having no profile.
-     *
-     * Only staff roles are accepted: this application has no customer accounts.
-     */
-    public CreateUserResponse createUser(CreateUserRequest request) {
+    @Transactional
+    public void resetPassword(String uid, String password) {
+        User user = getUserByUid(uid);
+        authRepository.createOrResetAccount(uid, user.getEmail(), passwordEncoder.encode(password));
+    }
 
+    @Transactional
+    public CreateUserResponse createUser(CreateUserRequest request) {
         if (request.role() == null || !Role.isStaffRole(request.role().name())) {
             throw new IllegalArgumentException("Role must be a staff role");
         }
-
-        UserRecord createdUser;
-
-        try {
-            createdUser = firebaseAuth.createUser(new UserRecord.CreateRequest()
-                    .setEmail(request.email())
-                    .setPassword(request.password())
-                    .setDisplayName(
-                            (request.firstName() + " "
-                                    + (request.lastName() != null ? request.lastName() : "")).trim()));
-        } catch (FirebaseAuthException exception) {
-            if (exception.getAuthErrorCode()
-                    == com.google.firebase.auth.AuthErrorCode.EMAIL_ALREADY_EXISTS) {
-                throw new ConflictException("Email is already registered");
-            }
-
-            String httpDetails = exception.getHttpResponse() == null
-                    ? "no HTTP response"
-                    : "status=" + exception.getHttpResponse().getStatusCode()
-                            + ", body=" + exception.getHttpResponse().getContent();
-
-            logger.error("Firebase Authentication createUser failed: code={}, {}, message={}",
-                    exception.getAuthErrorCode(), httpDetails, exception.getMessage());
-
-            throw new FirebaseOperationException(
-                    "Unable to create Firebase Authentication account", exception);
+        if (authRepository.findByEmail(request.email()).isPresent()) {
+            throw new ConflictException("Email is already registered");
         }
-
+        String uid = java.util.UUID.randomUUID().toString();
+        userRepository.createProfile(uid, request.email(), request.firstName(),
+                request.lastName(), request.phone(), request.role());
         try {
-            userRepository.createProfile(
-                    createdUser.getUid(),
-                    createdUser.getEmail(),
-                    request.firstName(),
-                    request.lastName(),
-                    request.phone(),
-                    request.role());
-        } catch (RuntimeException exception) {
-            try {
-                firebaseAuth.deleteUser(createdUser.getUid());
-            } catch (FirebaseAuthException rollbackException) {
-                exception.addSuppressed(rollbackException);
-            }
-            throw exception;
+            authRepository.createAccount(uid, request.email(), passwordEncoder.encode(request.password()));
+        } catch (DuplicateKeyException exception) {
+            throw new ConflictException("Email is already registered");
         }
-
-        return new CreateUserResponse(
-                "Staff account created",
-                createdUser.getUid(),
-                createdUser.getEmail(),
-                request.role().name());
+        return new CreateUserResponse("Staff account created", uid, request.email(), request.role().name());
     }
 }

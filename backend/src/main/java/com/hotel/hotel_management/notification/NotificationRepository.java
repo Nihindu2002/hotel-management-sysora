@@ -1,9 +1,9 @@
 package com.hotel.hotel_management.notification;
 
-import com.google.cloud.firestore.DocumentReference;
-import com.google.cloud.firestore.DocumentSnapshot;
-import com.google.cloud.firestore.Firestore;
-import com.google.cloud.firestore.WriteBatch;
+import com.hotel.hotel_management.storage.PostgresDocumentStore.DocumentReference;
+import com.hotel.hotel_management.storage.PostgresDocumentStore.DocumentSnapshot;
+import com.hotel.hotel_management.storage.PostgresDocumentStore;
+import com.hotel.hotel_management.storage.PostgresDocumentStore.WriteBatch;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
@@ -20,14 +20,14 @@ public class NotificationRepository {
 
     private static final String COLLECTION = "notifications";
 
-    private final Firestore firestore;
+    private final PostgresDocumentStore documentStore;
 
-    public NotificationRepository(Firestore firestore) {
-        this.firestore = firestore;
+    public NotificationRepository(PostgresDocumentStore documentStore) {
+        this.documentStore = documentStore;
     }
 
     public Notification save(Notification notification) {
-        DocumentReference document = firestore.collection(COLLECTION)
+        DocumentReference document = documentStore.collection(COLLECTION)
                 .document(notification.getNotificationId());
 
         Map<String, Object> data = new HashMap<>();
@@ -56,7 +56,7 @@ public class NotificationRepository {
 
     public Optional<Notification> findById(String notificationId) {
         try {
-            DocumentSnapshot snapshot = firestore.collection(COLLECTION)
+            DocumentSnapshot snapshot = documentStore.collection(COLLECTION)
                     .document(notificationId)
                     .get()
                     .get();
@@ -73,13 +73,13 @@ public class NotificationRepository {
     /**
      * All notifications addressed to one user.
      *
-     * Filtered and sorted in memory rather than with a Firestore orderBy, which
+     * Filtered and sorted in memory rather than with a PostgreSQL orderBy, which
      * would require a composite index on (userUid, createdAt) to be provisioned
      * per project. Volumes here are small and per-user.
      */
     public List<Notification> findByUserUid(String userUid) {
         try {
-            var documents = firestore.collection(COLLECTION)
+            var documents = documentStore.collection(COLLECTION)
                     .whereEqualTo("userUid", userUid)
                     .get()
                     .get()
@@ -110,7 +110,7 @@ public class NotificationRepository {
 
     public Notification updateReadStatus(String notificationId, boolean isRead) {
         try {
-            firestore.collection(COLLECTION)
+            documentStore.collection(COLLECTION)
                     .document(notificationId)
                     .update("isRead", isRead)
                     .get();
@@ -136,10 +136,10 @@ public class NotificationRepository {
         }
 
         try {
-            WriteBatch batch = firestore.batch();
+            WriteBatch batch = documentStore.batch();
             for (Notification notification : unread) {
                 batch.update(
-                        firestore.collection(COLLECTION).document(notification.getNotificationId()),
+                        documentStore.collection(COLLECTION).document(notification.getNotificationId()),
                         "isRead", true);
             }
             batch.commit().get();
@@ -154,7 +154,7 @@ public class NotificationRepository {
 
     public void delete(String notificationId) {
         try {
-            firestore.collection(COLLECTION).document(notificationId).delete().get();
+            documentStore.collection(COLLECTION).document(notificationId).delete().get();
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Unable to delete notification", exception);

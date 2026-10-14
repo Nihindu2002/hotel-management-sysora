@@ -1,8 +1,8 @@
 package com.hotel.hotel_management.finance;
 
-import com.google.cloud.firestore.DocumentReference;
-import com.google.cloud.firestore.DocumentSnapshot;
-import com.google.cloud.firestore.Firestore;
+import com.hotel.hotel_management.storage.PostgresDocumentStore.DocumentReference;
+import com.hotel.hotel_management.storage.PostgresDocumentStore.DocumentSnapshot;
+import com.hotel.hotel_management.storage.PostgresDocumentStore;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
@@ -18,14 +18,14 @@ import java.util.concurrent.ExecutionException;
 @Repository
 public class FinanceRepository {
 
-    private final Firestore firestore;
+    private final PostgresDocumentStore documentStore;
 
-    public FinanceRepository(Firestore firestore) {
-        this.firestore = firestore;
+    public FinanceRepository(PostgresDocumentStore documentStore) {
+        this.documentStore = documentStore;
     }
 
     public FinanceTransaction save(FinanceTransaction transaction) {
-        DocumentReference document = firestore.collection("financeTransactions")
+        DocumentReference document = documentStore.collection("financeTransactions")
                 .document(transaction.getTransactionId());
 
         Map<String, Object> data = new HashMap<>();
@@ -54,7 +54,7 @@ public class FinanceRepository {
     }
 
     public Optional<FinanceTransaction> findById(String transactionId) {
-        DocumentReference document = firestore.collection("financeTransactions")
+        DocumentReference document = documentStore.collection("financeTransactions")
                 .document(transactionId);
 
         try {
@@ -73,7 +73,7 @@ public class FinanceRepository {
 
     public List<FinanceTransaction> findAll() {
         try {
-            var documents = firestore.collection("financeTransactions")
+            var documents = documentStore.collection("financeTransactions")
                     .get()
                     .get()
                     .getDocuments();
@@ -93,7 +93,7 @@ public class FinanceRepository {
 
     public List<FinanceTransaction> findByReferenceId(String referenceId) {
         try {
-            var documents = firestore.collection("financeTransactions")
+            var documents = documentStore.collection("financeTransactions")
                     .whereEqualTo("referenceId", referenceId)
                     .get()
                     .get()
@@ -114,7 +114,7 @@ public class FinanceRepository {
 
     public List<FinanceTransaction> findByType(FinanceTransactionType type) {
         try {
-            var documents = firestore.collection("financeTransactions")
+            var documents = documentStore.collection("financeTransactions")
                     .whereEqualTo("type", type.name())
                     .get()
                     .get()
@@ -135,7 +135,7 @@ public class FinanceRepository {
 
     public List<FinanceTransaction> findByCategory(FinanceCategory category) {
         try {
-            var documents = firestore.collection("financeTransactions")
+            var documents = documentStore.collection("financeTransactions")
                     .whereEqualTo("category", category.name())
                     .get()
                     .get()
@@ -155,7 +155,7 @@ public class FinanceRepository {
     }
 
     public FinanceTransaction update(String transactionId, UpdateFinanceTransactionRequest request) {
-        DocumentReference document = firestore.collection("financeTransactions")
+        DocumentReference document = documentStore.collection("financeTransactions")
                 .document(transactionId);
 
         Map<String, Object> updates = new HashMap<>();
@@ -177,7 +177,7 @@ public class FinanceRepository {
     }
 
     public FinanceTransaction updateStatus(String transactionId, FinanceStatus status) {
-        DocumentReference document = firestore.collection("financeTransactions")
+        DocumentReference document = documentStore.collection("financeTransactions")
                 .document(transactionId);
 
         Map<String, Object> updates = new HashMap<>();
@@ -197,7 +197,7 @@ public class FinanceRepository {
     }
 
     public FinanceTransaction updateAmount(String transactionId, Double newAmount) {
-        DocumentReference document = firestore.collection("financeTransactions")
+        DocumentReference document = documentStore.collection("financeTransactions")
                 .document(transactionId);
 
         Map<String, Object> updates = new HashMap<>();
@@ -217,7 +217,7 @@ public class FinanceRepository {
     }
 
     public void delete(String transactionId) {
-        DocumentReference document = firestore.collection("financeTransactions")
+        DocumentReference document = documentStore.collection("financeTransactions")
                 .document(transactionId);
 
         try {

@@ -1,8 +1,8 @@
 package com.hotel.hotel_management.inventory;
 
-import com.google.cloud.firestore.DocumentReference;
-import com.google.cloud.firestore.DocumentSnapshot;
-import com.google.cloud.firestore.Firestore;
+import com.hotel.hotel_management.storage.PostgresDocumentStore.DocumentReference;
+import com.hotel.hotel_management.storage.PostgresDocumentStore.DocumentSnapshot;
+import com.hotel.hotel_management.storage.PostgresDocumentStore;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
@@ -16,16 +16,16 @@ import java.util.concurrent.ExecutionException;
 @Repository
 public class InventoryRepository {
 
-    private final Firestore firestore;
+    private final PostgresDocumentStore documentStore;
 
-    public InventoryRepository(Firestore firestore) {
-        this.firestore = firestore;
+    public InventoryRepository(PostgresDocumentStore documentStore) {
+        this.documentStore = documentStore;
     }
 
     public InventoryItem save(InventoryItem item) {
 
         DocumentReference document =
-                firestore.collection("inventoryItems")
+                documentStore.collection("inventoryItems")
                         .document(item.getItemId());
 
         Map<String, Object> data = new HashMap<>();
@@ -56,7 +56,7 @@ public class InventoryRepository {
     public Optional<InventoryItem> findById(String itemId) {
 
         DocumentReference document =
-                firestore.collection("inventoryItems")
+                documentStore.collection("inventoryItems")
                         .document(itemId);
 
         try {
@@ -79,7 +79,7 @@ public class InventoryRepository {
 
         try {
             var documents =
-                    firestore.collection("inventoryItems")
+                    documentStore.collection("inventoryItems")
                             .get()
                             .get()
                             .getDocuments();
@@ -101,7 +101,7 @@ public class InventoryRepository {
     public InventoryItem update(String itemId, UpdateInventoryItemRequest request) {
 
         DocumentReference document =
-                firestore.collection("inventoryItems")
+                documentStore.collection("inventoryItems")
                         .document(itemId);
 
         Map<String, Object> updates = new HashMap<>();
@@ -130,7 +130,7 @@ public class InventoryRepository {
     public InventoryItem updateQuantity(String itemId, Double quantity) {
 
         DocumentReference document =
-                firestore.collection("inventoryItems")
+                documentStore.collection("inventoryItems")
                         .document(itemId);
 
         Map<String, Object> updates = new HashMap<>();
@@ -153,7 +153,7 @@ public class InventoryRepository {
     public InventoryItem updateStatus(String itemId, InventoryStatus status) {
 
         DocumentReference document =
-                firestore.collection("inventoryItems")
+                documentStore.collection("inventoryItems")
                         .document(itemId);
 
         Map<String, Object> updates = new HashMap<>();
@@ -176,7 +176,7 @@ public class InventoryRepository {
     public void delete(String itemId) {
 
         DocumentReference document =
-                firestore.collection("inventoryItems")
+                documentStore.collection("inventoryItems")
                         .document(itemId);
 
         try {

@@ -297,7 +297,7 @@ public class MaintenanceService {
 
     /**
      * Returns maintenance tasks matching the supplied filters. Any filter left
-     * {@code null} is ignored. Filtering is applied in memory because Firestore
+     * {@code null} is ignored. Filtering is applied in memory because PostgreSQL
      * would otherwise require a composite index for each filter combination.
      */
     public List<MaintenanceTask> getTasksFiltered(

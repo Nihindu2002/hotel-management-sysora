@@ -42,4 +42,22 @@ public class AuthController {
 
         return ResponseEntity.ok(authService.login(request));
     }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(@RequestHeader(name = "Authorization", required = false) String authorization) {
+        String token = authorization != null && authorization.startsWith("Bearer ")
+                ? authorization.substring("Bearer ".length()).trim() : null;
+        authService.logout(token);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<Void> changePassword(
+            org.springframework.security.core.Authentication authentication,
+            @Valid @RequestBody ChangePasswordRequest request) {
+        com.hotel.hotel_management.security.AuthenticatedUser user =
+                (com.hotel.hotel_management.security.AuthenticatedUser) authentication.getPrincipal();
+        authService.changePassword(user.uid(), request.currentPassword(), request.newPassword());
+        return ResponseEntity.noContent().build();
+    }
 }

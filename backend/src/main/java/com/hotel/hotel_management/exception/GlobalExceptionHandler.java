@@ -1,6 +1,5 @@
 package com.hotel.hotel_management.exception;
 
-import com.hotel.hotel_management.auth.FirebaseOperationException;
 import com.hotel.hotel_management.common.ForbiddenException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolation;
@@ -105,20 +104,6 @@ public class GlobalExceptionHandler {
                 HttpStatus.UNAUTHORIZED,
                 "Unauthorized",
                 "Full authentication is required to access this resource",
-                request
-        );
-    }
-
-    @ExceptionHandler(FirebaseOperationException.class)
-    public ResponseEntity<ApiError> handleFirebaseOperationFailure(
-            FirebaseOperationException ex,
-            HttpServletRequest request) {
-
-        log.error("Firebase operation failure on request to {}: {}", request.getRequestURI(), ex.getMessage(), ex);
-        return buildResponse(
-                HttpStatus.INTERNAL_SERVER_ERROR,
-                "Internal Server Error",
-                "Authentication service operation failed",
                 request
         );
     }

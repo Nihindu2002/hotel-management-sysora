@@ -1,5 +1,5 @@
 package com.hotel.hotel_management.inventory;
-import com.google.firebase.auth.FirebaseToken;
+import com.hotel.hotel_management.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -106,7 +106,7 @@ public class InventoryController {
     @PostMapping("/stock-in")
     public ResponseEntity<InventoryTransaction> stockIn(
             @Valid @RequestBody StockInRequest request,
-            @Parameter(hidden = true) @AuthenticationPrincipal FirebaseToken token) {
+            @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser token) {
 
         return ResponseEntity.ok(
                 inventoryService.stockIn(
@@ -123,7 +123,7 @@ public class InventoryController {
     @PostMapping("/stock-out")
     public ResponseEntity<InventoryTransaction> stockOut(
             @Valid @RequestBody StockOutRequest request,
-            @Parameter(hidden = true) @AuthenticationPrincipal FirebaseToken token) {
+            @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser token) {
 
         return ResponseEntity.ok(
                 inventoryService.stockOut(
@@ -139,7 +139,7 @@ public class InventoryController {
     @PostMapping("/adjustment")
     public ResponseEntity<InventoryTransaction> adjustStock(
             @Valid @RequestBody InventoryAdjustmentRequest request,
-            @Parameter(hidden = true) @AuthenticationPrincipal FirebaseToken token) {
+            @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser token) {
 
         return ResponseEntity.ok(
                 inventoryService.adjustStock(

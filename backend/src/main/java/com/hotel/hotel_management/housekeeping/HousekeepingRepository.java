@@ -1,8 +1,8 @@
 package com.hotel.hotel_management.housekeeping;
 
-import com.google.cloud.firestore.DocumentReference;
-import com.google.cloud.firestore.DocumentSnapshot;
-import com.google.cloud.firestore.Firestore;
+import com.hotel.hotel_management.storage.PostgresDocumentStore.DocumentReference;
+import com.hotel.hotel_management.storage.PostgresDocumentStore.DocumentSnapshot;
+import com.hotel.hotel_management.storage.PostgresDocumentStore;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
@@ -12,16 +12,16 @@ import java.util.concurrent.ExecutionException;
 @Repository
 public class HousekeepingRepository {
 
-    private final Firestore firestore;
+    private final PostgresDocumentStore documentStore;
 
-    public HousekeepingRepository(Firestore firestore) {
-        this.firestore = firestore;
+    public HousekeepingRepository(PostgresDocumentStore documentStore) {
+        this.documentStore = documentStore;
     }
 
     public HousekeepingTask save(HousekeepingTask task) {
 
         DocumentReference document =
-                firestore.collection("housekeepingTasks")
+                documentStore.collection("housekeepingTasks")
                         .document(task.getTaskId());
 
         Map<String, Object> data = new HashMap<>();
@@ -51,7 +51,7 @@ public class HousekeepingRepository {
     public Optional<HousekeepingTask> findById(String taskId) {
 
         DocumentReference document =
-                firestore.collection("housekeepingTasks")
+                documentStore.collection("housekeepingTasks")
                         .document(taskId);
 
         try {
@@ -74,7 +74,7 @@ public class HousekeepingRepository {
 
         try {
             var documents =
-                    firestore.collection("housekeepingTasks")
+                    documentStore.collection("housekeepingTasks")
                             .get()
                             .get()
                             .getDocuments();
@@ -97,7 +97,7 @@ public class HousekeepingRepository {
 
         try {
             var documents =
-                    firestore.collection("housekeepingTasks")
+                    documentStore.collection("housekeepingTasks")
                             .whereEqualTo("roomId", roomId)
                             .get()
                             .get()
@@ -121,7 +121,7 @@ public class HousekeepingRepository {
 
         try {
             var documents =
-                    firestore.collection("housekeepingTasks")
+                    documentStore.collection("housekeepingTasks")
                             .whereEqualTo("assignedTo", staffUid)
                             .get()
                             .get()
@@ -147,7 +147,7 @@ public class HousekeepingRepository {
             HousekeepingTaskStatus status) {
 
         DocumentReference document =
-                firestore.collection("housekeepingTasks")
+                documentStore.collection("housekeepingTasks")
                         .document(taskId);
 
         Map<String, Object> updates = new HashMap<>();
@@ -174,7 +174,7 @@ public class HousekeepingRepository {
             Instant timestamp) {
 
         DocumentReference document =
-                firestore.collection("housekeepingTasks")
+                documentStore.collection("housekeepingTasks")
                         .document(taskId);
 
         Map<String, Object> updates = new HashMap<>();
@@ -203,7 +203,7 @@ public class HousekeepingRepository {
     public void delete(String taskId) {
 
         DocumentReference document =
-                firestore.collection("housekeepingTasks")
+                documentStore.collection("housekeepingTasks")
                         .document(taskId);
 
         try {

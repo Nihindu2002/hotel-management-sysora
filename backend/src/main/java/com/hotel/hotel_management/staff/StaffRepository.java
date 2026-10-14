@@ -1,8 +1,8 @@
 package com.hotel.hotel_management.staff;
 
-import com.google.cloud.firestore.DocumentReference;
-import com.google.cloud.firestore.DocumentSnapshot;
-import com.google.cloud.firestore.Firestore;
+import com.hotel.hotel_management.storage.PostgresDocumentStore.DocumentReference;
+import com.hotel.hotel_management.storage.PostgresDocumentStore.DocumentSnapshot;
+import com.hotel.hotel_management.storage.PostgresDocumentStore;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
@@ -19,7 +19,7 @@ import java.util.concurrent.ExecutionException;
 @Repository
 public class StaffRepository {
 
-    private final Firestore firestore;
+    private final PostgresDocumentStore documentStore;
     private final Map<String, Staff> staffByIdCache = new ConcurrentHashMap<>();
     private final Map<String, Staff> staffByUserUidCache = new ConcurrentHashMap<>();
     private final Map<String, Staff> staffByEmployeeIdCache = new ConcurrentHashMap<>();
@@ -27,8 +27,8 @@ public class StaffRepository {
     private volatile long cacheExpiryTime = 0L;
     private static final long CACHE_TTL_MS = 60 * 1000L; // 60 seconds
 
-    public StaffRepository(Firestore firestore) {
-        this.firestore = firestore;
+    public StaffRepository(PostgresDocumentStore documentStore) {
+        this.documentStore = documentStore;
     }
 
     public void clearCache() {
@@ -40,7 +40,7 @@ public class StaffRepository {
     }
 
     public Staff save(Staff staff) {
-        DocumentReference document = firestore.collection("staff")
+        DocumentReference document = documentStore.collection("staff")
                 .document(staff.getStaffId());
 
         Map<String, Object> data = new HashMap<>();
@@ -78,7 +78,7 @@ public class StaffRepository {
             return Optional.of(cached);
         }
 
-        DocumentReference document = firestore.collection("staff")
+        DocumentReference document = documentStore.collection("staff")
                 .document(staffId);
 
         try {
@@ -108,7 +108,7 @@ public class StaffRepository {
         }
 
         try {
-            var documents = firestore.collection("staff")
+            var documents = documentStore.collection("staff")
                     .whereEqualTo("userUid", userUid)
                     .limit(1)
                     .get()
@@ -140,7 +140,7 @@ public class StaffRepository {
         }
 
         try {
-            var documents = firestore.collection("staff")
+            var documents = documentStore.collection("staff")
                     .whereEqualTo("employeeId", employeeId)
                     .limit(1)
                     .get()
@@ -169,7 +169,7 @@ public class StaffRepository {
         }
 
         try {
-            var documents = firestore.collection("staff")
+            var documents = documentStore.collection("staff")
                     .get()
                     .get()
                     .getDocuments();
@@ -204,7 +204,7 @@ public class StaffRepository {
     }
 
     public Staff update(String staffId, UpdateStaffRequest request) {
-        DocumentReference document = firestore.collection("staff")
+        DocumentReference document = documentStore.collection("staff")
                 .document(staffId);
 
         Map<String, Object> updates = new HashMap<>();
@@ -230,7 +230,7 @@ public class StaffRepository {
     }
 
     public Staff updateStatus(String staffId, EmploymentStatus status) {
-        DocumentReference document = firestore.collection("staff")
+        DocumentReference document = documentStore.collection("staff")
                 .document(staffId);
 
         Map<String, Object> updates = new HashMap<>();
@@ -251,7 +251,7 @@ public class StaffRepository {
     }
 
     public void delete(String staffId) {
-        DocumentReference document = firestore.collection("staff")
+        DocumentReference document = documentStore.collection("staff")
                 .document(staffId);
 
         try {

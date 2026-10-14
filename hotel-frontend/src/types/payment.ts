@@ -16,7 +16,7 @@ export interface Payment {
   amount: number;
   paymentMethod: PaymentMethod | string;
   status: PaymentStatus | string;
-  /** Firebase uid of the staff member who recorded it. */
+  /** User ID of the staff member who recorded it. */
   recordedBy?: string | null;
   createdAt?: string;
   updatedAt?: string;

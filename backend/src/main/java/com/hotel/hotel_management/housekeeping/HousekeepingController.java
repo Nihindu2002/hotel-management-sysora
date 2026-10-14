@@ -1,5 +1,5 @@
 package com.hotel.hotel_management.housekeeping;
-import com.google.firebase.auth.FirebaseToken;
+import com.hotel.hotel_management.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -74,7 +74,7 @@ public class HousekeepingController {
     @Operation(summary = "Get my housekeeping tasks", description = "Retrieves tasks assigned to the currently authenticated housekeeping staff member")
     @GetMapping("/my")
     public ResponseEntity<List<HousekeepingTask>> getMyTasks(
-            @Parameter(hidden = true) @AuthenticationPrincipal FirebaseToken token) {
+            @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser token) {
 
         return ResponseEntity.ok(
                 housekeepingService.getMyTasks(token.getUid()));
@@ -104,7 +104,7 @@ public class HousekeepingController {
     @PatchMapping("/tasks/{taskId}/start")
     public ResponseEntity<HousekeepingTask> startTask(
             @PathVariable String taskId,
-            @Parameter(hidden = true) @AuthenticationPrincipal FirebaseToken token,
+            @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser token,
             @jakarta.validation.Valid @RequestBody(required = false) StartHousekeepingTaskRequest request) {
 
         return ResponseEntity.ok(
@@ -121,7 +121,7 @@ public class HousekeepingController {
     @PatchMapping("/tasks/{taskId}/complete")
     public ResponseEntity<HousekeepingTask> completeTask(
             @PathVariable String taskId,
-            @Parameter(hidden = true) @AuthenticationPrincipal FirebaseToken token) {
+            @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedUser token) {
 
         return ResponseEntity.ok(
                 housekeepingService.completeTask(taskId, token.getUid()));

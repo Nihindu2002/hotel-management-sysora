@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { getAuth } from 'firebase/auth';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
@@ -15,13 +14,8 @@ const api = axios.create({
 // value and so forced an OPTIONS preflight on every public request. Axios sets the
 // header itself when there is an actual JSON body.
 api.interceptors.request.use(async (config) => {
-  const user = getAuth().currentUser;
-
-  if (user) {
-    const token = await user.getIdToken();
-
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+  const token = localStorage.getItem('hotel_session_token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
 
   return config;
 });

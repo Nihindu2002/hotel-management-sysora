@@ -28,7 +28,7 @@ public class Reservation {
     private String customerPhone;
     private String customerEmail;
 
-    /** Firebase uid of the staff member who took the booking. */
+    /** user ID of the staff member who took the booking. */
     private String createdBy;
 
     private Instant createdAt;

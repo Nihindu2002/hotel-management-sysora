@@ -22,7 +22,7 @@ import org.springframework.context.annotation.Configuration;
         name = "bearerAuth",
         type = SecuritySchemeType.HTTP,
         scheme = "bearer",
-        bearerFormat = "Firebase ID Token"
+        bearerFormat = "Session token"
 )
 public class OpenApiConfig {
 }

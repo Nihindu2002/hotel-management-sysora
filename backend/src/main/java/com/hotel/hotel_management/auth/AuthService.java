@@ -1,77 +1,49 @@
 package com.hotel.hotel_management.auth;
 
-import com.google.firebase.auth.FirebaseAuth;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
+import com.hotel.hotel_management.user.User;
+import com.hotel.hotel_management.user.UserRepository;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientResponseException;
-import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class AuthService {
+    private final AuthRepository authRepository;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    private static final Logger logger = LoggerFactory.getLogger(AuthService.class);
-
-    private final FirebaseAuth firebaseAuth;
-    private final RestClient restClient;
-    private final String firebaseApiKey;
-
-    public AuthService(
-            FirebaseAuth firebaseAuth,
-            @Value("${firebase.api-key}") String firebaseApiKey) {
-
-        this.firebaseAuth = firebaseAuth;
-        this.firebaseApiKey = firebaseApiKey;
-        this.restClient = RestClient.create();
+    public AuthService(AuthRepository authRepository, UserRepository userRepository,
+            PasswordEncoder passwordEncoder) {
+        this.authRepository = authRepository;
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     public LoginResponse login(LoginRequest request) {
+        AuthRepository.Account account = authRepository.findByEmail(request.email())
+                .filter(AuthRepository.Account::enabled)
+                .filter(found -> passwordEncoder.matches(request.password(), found.passwordHash()))
+                .orElseThrow(() -> new BadCredentialsException("Invalid email or password"));
+        User profile = userRepository.findByUid(account.uid())
+                .filter(User::isEnabled)
+                .orElseThrow(() -> new BadCredentialsException("Invalid email or password"));
+        String token = authRepository.createSession(account.uid());
+        return new LoginResponse("Login successful", token, "", account.uid(),
+                profile.getEmail(), "28800");
+    }
 
-        String url = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key="
-                + firebaseApiKey;
+    public void logout(String token) {
+        if (token != null && !token.isBlank()) authRepository.revokeSession(token);
+    }
 
-        LoginFirebaseRequest firebaseRequest =
-                new LoginFirebaseRequest(
-                        request.email(),
-                        request.password(),
-                        true
-                );
-
-        try {
-            LoginFirebaseResponse response = restClient.post()
-                    .uri(url)
-                    .body(firebaseRequest)
-                    .retrieve()
-                    .body(LoginFirebaseResponse.class);
-
-            return new LoginResponse(
-                    "Login successful",
-                    response.idToken(),
-                    response.refreshToken(),
-                    response.localId(),
-                    response.email(),
-                    response.expiresIn()
-            );
-        } catch (RestClientResponseException exception) {
-            logger.warn("Firebase sign-in failed for email {}: status={}, body={}",
-                    request.email(), exception.getStatusCode(), exception.getResponseBodyAsString());
-
-            if (exception.getStatusCode().is4xxClientError()) {
-                throw new ResponseStatusException(
-                        HttpStatus.UNAUTHORIZED,
-                        "Invalid email or password",
-                        exception
-                );
-            }
-
-            throw new ResponseStatusException(
-                    HttpStatus.INTERNAL_SERVER_ERROR,
-                    "Unable to authenticate user",
-                    exception
-            );
+    public void changePassword(String uid, String currentPassword, String newPassword) {
+        AuthRepository.Account account = authRepository.findByEmail(
+                        userRepository.findByUid(uid).map(User::getEmail).orElse(""))
+                .filter(AuthRepository.Account::enabled)
+                .orElseThrow(() -> new BadCredentialsException("Invalid account"));
+        if (!passwordEncoder.matches(currentPassword, account.passwordHash())) {
+            throw new BadCredentialsException("Current password is incorrect");
         }
+        authRepository.updatePassword(uid, passwordEncoder.encode(newPassword));
     }
 }
