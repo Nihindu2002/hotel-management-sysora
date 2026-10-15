@@ -17,6 +17,20 @@ const api = axios.create({
   timeout: 30_000,
 });
 
+/** Retry a request once when a sleeping backend or its proxy briefly fails. */
+export async function withTransientRetry<T>(request: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await request();
+    } catch (error) {
+      const temporaryFailure = axios.isAxiosError(error)
+        && (!error.response || [502, 503, 504].includes(error.response.status));
+      if (attempt >= 1 || !temporaryFailure) throw error;
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 2_000));
+    }
+  }
+}
+
 // No `Content-Type` is set here on purpose. Declaring `application/json` on the
 // instance made axios send it on GETs with no body, which is not a CORS-safelisted
 // value and so forced an OPTIONS preflight on every public request. Axios sets the

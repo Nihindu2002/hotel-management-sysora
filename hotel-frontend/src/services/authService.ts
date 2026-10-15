@@ -1,4 +1,4 @@
-import api from './api';
+import api, { withTransientRetry } from './api';
 
 const TOKEN_KEY = 'hotel_session_token';
 
@@ -10,10 +10,16 @@ export interface LoginResponse {
   expiresIn: string;
 }
 
+const LOGIN_TIMEOUT_MS = 60_000;
+
 export async function login(email: string, password: string): Promise<LoginResponse> {
-  const response = await api.post<LoginResponse>('/auth/login', { email, password });
-  localStorage.setItem(TOKEN_KEY, response.data.idToken);
-  return response.data;
+  return withTransientRetry(async () => {
+    const response = await api.post<LoginResponse>('/auth/login', { email, password }, {
+      timeout: LOGIN_TIMEOUT_MS,
+    });
+    localStorage.setItem(TOKEN_KEY, response.data.idToken);
+    return response.data;
+  });
 }
 
 export async function logout(): Promise<void> {

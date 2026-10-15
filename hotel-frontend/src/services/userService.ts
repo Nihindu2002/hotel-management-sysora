@@ -1,5 +1,5 @@
 import type { UserRole, UserProfile } from '../types/user';
-import api from './api';
+import api, { withTransientRetry } from './api';
 
 export interface AdminRegisterUserRequest {
   firstName: string;
@@ -65,8 +65,10 @@ export const registerUserByAdmin = async (
 export const getCurrentUser = async (): Promise<UserProfile> => {
   // Auth cannot finish until this profile is loaded; allow for a cold backend
   // start without extending the timeout for unrelated API requests.
-  const response = await api.get<UserProfile>('/users/me', { timeout: 90_000 });
-  return response.data;
+  return withTransientRetry(async () => {
+    const response = await api.get<UserProfile>('/users/me', { timeout: 90_000 });
+    return response.data;
+  });
 };
 
 /**

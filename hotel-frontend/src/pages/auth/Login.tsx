@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Navigate, useNavigate } from 'react-router-dom';
@@ -9,6 +10,7 @@ export default function Login() {
   const { user, loading, login } = useAuth();
   const navigate = useNavigate();
   const [apiError, setApiError] = useState('');
+  const [showConnectingMessage, setShowConnectingMessage] = useState(false);
 
   const {
     register,
@@ -24,6 +26,8 @@ export default function Login() {
 
   const onSubmit = async (data: LoginFormValues) => {
     setApiError('');
+    setShowConnectingMessage(false);
+    const connectingTimer = window.setTimeout(() => setShowConnectingMessage(true), 5_000);
 
     try {
       // The role drives where we land, so read it off the profile this call
@@ -39,10 +43,19 @@ export default function Login() {
         }
       }
       if (err instanceof Error) {
-        setApiError(err.message);
+        const isConnectionFailure = axios.isAxiosError(err) && !err.response;
+        const isServerFailure = axios.isAxiosError(err) && (err.response?.status ?? 0) >= 500;
+        setApiError(isConnectionFailure
+          ? 'The server is taking too long to respond. Please wait a moment and try again.'
+          : isServerFailure
+            ? 'The server encountered a problem. Please try again in a moment.'
+            : err.message);
       } else {
         setApiError('An unexpected error occurred');
       }
+    } finally {
+      window.clearTimeout(connectingTimer);
+      setShowConnectingMessage(false);
     }
   };
 
@@ -126,6 +139,11 @@ export default function Login() {
                   <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />Signing in…</>
                 ) : 'Sign in'}
               </button>
+              {isSubmitting && showConnectingMessage && (
+                <p role="status" className="text-center text-sm text-muted">
+                  Connecting to the server. If it has been idle, it may take a little longer to start.
+                </p>
+              )}
             </form>
 
             <p className="mt-6 text-center text-xs text-muted">Access is provided by your hotel administrator.</p>
